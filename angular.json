@@ -2,5 +2,170 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "newProjectRoot": "projects",
-  "projects": {}
+  "projects": {
+    "ng-limp": {
+      "root": "projects/ng-limp",
+      "sourceRoot": "projects/ng-limp/src",
+      "projectType": "library",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-ng-packagr:build",
+          "options": {
+            "tsConfig": "projects/ng-limp/tsconfig.lib.json",
+            "project": "projects/ng-limp/ng-package.json"
+          }
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma",
+          "options": {
+            "main": "projects/ng-limp/src/test.ts",
+            "tsConfig": "projects/ng-limp/tsconfig.spec.json",
+            "karmaConfig": "projects/ng-limp/karma.conf.js"
+          }
+        },
+        "lint": {
+          "builder": "@angular-devkit/build-angular:tslint",
+          "options": {
+            "tsConfig": [
+              "projects/ng-limp/tsconfig.lib.json",
+              "projects/ng-limp/tsconfig.spec.json"
+            ],
+            "exclude": [
+              "**/node_modules/**"
+            ]
+          }
+        }
+      }
+    },
+    "ng-limp-test": {
+      "root": "projects/ng-limp-test/",
+      "sourceRoot": "projects/ng-limp-test/src",
+      "projectType": "application",
+      "prefix": "app",
+      "schematics": {},
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:browser",
+          "options": {
+            "outputPath": "dist/ng-limp-test",
+            "index": "projects/ng-limp-test/src/index.html",
+            "main": "projects/ng-limp-test/src/main.ts",
+            "polyfills": "projects/ng-limp-test/src/polyfills.ts",
+            "tsConfig": "projects/ng-limp-test/tsconfig.app.json",
+            "assets": [
+              "projects/ng-limp-test/src/favicon.ico",
+              "projects/ng-limp-test/src/assets"
+            ],
+            "styles": [
+              "projects/ng-limp-test/src/styles.css"
+            ],
+            "scripts": [],
+            "es5BrowserSupport": true
+          },
+          "configurations": {
+            "production": {
+              "fileReplacements": [
+                {
+                  "replace": "projects/ng-limp-test/src/environments/environment.ts",
+                  "with": "projects/ng-limp-test/src/environments/environment.prod.ts"
+                }
+              ],
+              "optimization": true,
+              "outputHashing": "all",
+              "sourceMap": false,
+              "extractCss": true,
+              "namedChunks": false,
+              "aot": true,
+              "extractLicenses": true,
+              "vendorChunk": false,
+              "buildOptimizer": true,
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "2mb",
+                  "maximumError": "5mb"
+                }
+              ]
+            }
+          }
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "browserTarget": "ng-limp-test:build"
+          },
+          "configurations": {
+            "production": {
+              "browserTarget": "ng-limp-test:build:production"
+            }
+          }
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "browserTarget": "ng-limp-test:build"
+          }
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma",
+          "options": {
+            "main": "projects/ng-limp-test/src/test.ts",
+            "polyfills": "projects/ng-limp-test/src/polyfills.ts",
+            "tsConfig": "projects/ng-limp-test/tsconfig.spec.json",
+            "karmaConfig": "projects/ng-limp-test/karma.conf.js",
+            "styles": [
+              "projects/ng-limp-test/src/styles.css"
+            ],
+            "scripts": [],
+            "assets": [
+              "projects/ng-limp-test/src/favicon.ico",
+              "projects/ng-limp-test/src/assets"
+            ]
+          }
+        },
+        "lint": {
+          "builder": "@angular-devkit/build-angular:tslint",
+          "options": {
+            "tsConfig": [
+              "projects/ng-limp-test/tsconfig.app.json",
+              "projects/ng-limp-test/tsconfig.spec.json"
+            ],
+            "exclude": [
+              "**/node_modules/**"
+            ]
+          }
+        }
+      }
+    },
+    "ng-limp-test-e2e": {
+      "root": "projects/ng-limp-test-e2e/",
+      "projectType": "application",
+      "prefix": "",
+      "architect": {
+        "e2e": {
+          "builder": "@angular-devkit/build-angular:protractor",
+          "options": {
+            "protractorConfig": "projects/ng-limp-test-e2e/protractor.conf.js",
+            "devServerTarget": "ng-limp-test:serve"
+          },
+          "configurations": {
+            "production": {
+              "devServerTarget": "ng-limp-test:serve:production"
+            }
+          }
+        },
+        "lint": {
+          "builder": "@angular-devkit/build-angular:tslint",
+          "options": {
+            "tsConfig": "projects/ng-limp-test-e2e/tsconfig.e2e.json",
+            "exclude": [
+              "**/node_modules/**"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "defaultProject": "ng-limp"
 }

@@ -17,6 +17,14 @@
     "lib": [
       "es2018",
       "dom"
-    ]
+    ],
+    "paths": {
+      "ng-limp": [
+        "dist/ng-limp"
+      ],
+      "ng-limp/*": [
+        "dist/ng-limp/*"
+      ]
+    }
   }
 }
