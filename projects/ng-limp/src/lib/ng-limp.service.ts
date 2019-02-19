@@ -132,7 +132,7 @@ export class ApiService {
 							size: callArgs.doc[attr][i].size,
 							type: callArgs.doc[attr][i].type,
 							lastModified: callArgs.doc[attr][i].lastModified,
-							content: byteArray
+							content: byteArray.join(',')
 						};
 						filesProcess.splice(filesProcess.indexOf(`${attr}.i`), 1);
 					};
