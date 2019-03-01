@@ -57,9 +57,10 @@ export class CacheService {
 @Injectable()
 export class ApiService {
 	subject!: Subject<any>;
-	ws_api!: string;
-	http_api!: string;
+	api!: string;
 	anon_token!: string;
+	fileChunkSize: number = 500 * 1024;
+	debug: boolean = false;
 
 	session!: any;
 
@@ -68,11 +69,15 @@ export class ApiService {
 
 	constructor(private cache: CacheService) { }
 
-	init(ws_api: string, http_api: string, anon_token: string): Observable<any> {
-		this.ws_api = ws_api;
-		this.http_api = http_api;
+	debugLog(...payload: any): void {
+		if (!this.debug) return;
+		console.log(...payload);
+	}
+
+	init(api: string, anon_token: string): Observable<any> {
+		this.api = api;
 		this.anon_token = anon_token;
-		this.subject = webSocket(this.ws_api);
+		this.subject = webSocket(this.api);
 		let init = new Observable(
 			(observer) => {
 				this.subject.subscribe(
@@ -110,7 +115,7 @@ export class ApiService {
 		callArgs.endpoint = endpoint;
 		callArgs.call_id = Math.random().toString(36).substring(7);
 
-		// console.log('callArgs', callArgs);
+		this.debugLog('callArgs', callArgs);
 		// console.log('sJWT', sJWT);
 
 		let filesProcess = [];
@@ -123,18 +128,36 @@ export class ApiService {
 					callArgs.doc[attr].push(file);
 				}
 				for (let i of Object.keys(callArgs.doc[attr])) {
-					filesProcess.push(`${attr}.i`);
+					filesProcess.push(`${attr}.${i}`);
 					let reader = new FileReader();
 					reader.onloadend = (file) => {
 						let byteArray = new Uint8Array((reader.result as any));
-						callArgs.doc[attr][i] = {
-							name: callArgs.doc[attr][i].name,
-							size: callArgs.doc[attr][i].size,
-							type: callArgs.doc[attr][i].type,
-							lastModified: callArgs.doc[attr][i].lastModified,
-							content: byteArray.join(',')
-						};
-						filesProcess.splice(filesProcess.indexOf(`${attr}.i`), 1);
+						/*callArgs.doc[attr][i] = */
+						let byteArrayIndex: number = 0;
+						let chunkIndex: number = 1;
+						// let chunksize: number = 500 * 1024;
+						while (byteArrayIndex < byteArray.length) {
+							this.debugLog('attempting to send chunk of 500kb from:', byteArrayIndex, chunkIndex);
+							this.call('file/upload', {
+								doc: {
+									attr: attr,
+									index: i,
+									chunk: chunkIndex,
+									total: Math.ceil(byteArray.length / this.fileChunkSize),
+									file: {
+										name: callArgs.doc[attr][i].name,
+										size: callArgs.doc[attr][i].size,
+										type: callArgs.doc[attr][i].type,
+										lastModified: callArgs.doc[attr][i].lastModified,
+										content: byteArray.slice(byteArrayIndex, byteArrayIndex + this.fileChunkSize).join(',')
+									}
+								}
+							}).subscribe((res) => {
+								filesProcess.splice(filesProcess.indexOf(`${attr}.${i}`), 1);
+							});
+							byteArrayIndex += this.fileChunkSize;
+							chunkIndex += 1;
+						}
 					};
 					reader.readAsArrayBuffer(callArgs.doc[attr][i]);
 				}
@@ -144,20 +167,22 @@ export class ApiService {
 
 		let call = new Observable(
 			(observer) => {
-				this.subject
+				let observable = this.subject
 					.subscribe(
 						(res: Res<Doc>) => {
-							// console.log('message received', res);
-							if (res.status == 291) {
-								// [TODO] Create files handling sequence.
-								return;
-							}
+							this.debugLog('message received from observer on callId:', res, callArgs.call_id);
 							if (res.args && res.args.call_id == callArgs.call_id) {
 								if (res.status == 200) {
 									observer.next(res);
+								} else if (res.status == 291) {
+									// [TODO] Create files handling sequence.
 								} else {
 									observer.error(res);
 								}
+								console.log('completing the observer. with callId:', res.args.call_id);
+								observer.complete();
+								observer.unsubscribe();
+								observable.unsubscribe();
 							}
 						}, (err: Res<Doc>) => {
 							if (err.args && err.args.call_id == callArgs.call_id) {
@@ -178,13 +203,10 @@ export class ApiService {
 
 	pushCall(callArgs: any, filesProcess: Array<string>): void {
 		setTimeout(() => {
-			// console.log('checking filesProcess...');
+			this.debugLog('checking filesProcess...');
 			if (filesProcess.length) {
 				this.pushCall(callArgs, filesProcess);
 			} else {
-				// if (callArgs.token == this.anon_token) {
-				// 	this.subject.next(callArgs);
-				// } else {
 				// Header
 				let oHeader = { alg: 'HS256', typ: 'JWT' };
 				// Payload
@@ -192,9 +214,8 @@ export class ApiService {
 				let tEnd = Math.round((new Date() as any) / 1000) + 86400;
 				let sHeader = JSON.stringify(oHeader);
 				let sPayload = JSON.stringify({ ...callArgs, iat: tNow, exp: tEnd });
-				// console.log(sHeader, sPayload, callArgs.token);
 				let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: callArgs.token });
-				console.log('sending request as JWT token:', callArgs, callArgs.token);
+				this.debugLog('sending request as JWT token:', callArgs, callArgs.token);
 				this.subject.next({ token: sJWT });
 				// }
 			}
@@ -277,7 +298,7 @@ export class ApiService {
 	}
 
 	checkAuth(): Observable<any> {
-		// console.log('attempting checkAuth');
+		this.debugLog('attempting checkAuth');
 		let check = new Observable(
 			(observer) => {
 				if (!this.cache.get('token') || !this.cache.get('sid')) observer.error(new Error('No credentials cached.'));

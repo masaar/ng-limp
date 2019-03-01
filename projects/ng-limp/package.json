@@ -1,24 +1,24 @@
 {
-  "name": "ng-limp",
-  "description": "Angular SDK for LIMP",
-	"version": "4.0.0",
-  "license" : "SEE LICENSE IN LICENSE",
-  "author": {
-    "name": "Mahmoud Abduljawad",
-    "email": "mahmoud@masaar.com",
-    "url": "https://masaar.com"
-  },
-  "homepage": "https://github.com/masaar/ng-limp",
-  "bugs": "https://github.com/masaar/ng-limp/issues",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/masaar/ng-limp.git"
-  },
-  "keywords": [
-    "limp",
-    "sdk",
-    "angular"
-  ],
+	"name": "ng-limp",
+	"description": "Angular SDK for LIMP",
+	"version": "4.2.0",
+	"license": "SEE LICENSE IN LICENSE",
+	"author": {
+		"name": "Mahmoud Abduljawad",
+		"email": "mahmoud@masaar.com",
+		"url": "https://masaar.com"
+	},
+	"homepage": "https://github.com/masaar/ng-limp",
+	"bugs": "https://github.com/masaar/ng-limp/issues",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/masaar/ng-limp.git"
+	},
+	"keywords": [
+		"limp",
+		"sdk",
+		"angular"
+	],
 	"peerDependencies": {
 		"@angular/common": "^6.1.0",
 		"@angular/core": "^6.1.0",
