@@ -87,12 +87,12 @@ export class ApiService {
 					(err: Res<Doc>) => {
 						observer.error(err);
 
-						this.cache.remove('token');
-						this.cache.remove('sid');
+						// this.cache.remove('token');
+						// this.cache.remove('sid');
 
-						this.authed = false;
-						this.session = undefined;
-						this.authed$.next(this.session);
+						// this.authed = false;
+						// this.session = undefined;
+						// this.authed$.next(this.session);
 					},
 					() => {
 						this.reconnect();
@@ -107,8 +107,8 @@ export class ApiService {
 	}
 
 	call(endpoint: string, callArgs: callArgs, binary: boolean = false): Observable<any> {
-		callArgs.sid = (this.authed) ? callArgs.sid || this.cache.get('sid') || 'f00000000000000000000012' : 'f00000000000000000000012';
-		callArgs.token = (this.authed) ? callArgs.token || this.cache.get('token') || this.anon_token : this.anon_token;
+		callArgs.sid = (this.authed) ? callArgs.sid || this.cache.get('sid') || 'f00000000000000000000012' : callArgs.sid || 'f00000000000000000000012';
+		callArgs.token = (this.authed) ? callArgs.token || this.cache.get('token') || this.anon_token : callArgs.token || this.anon_token;
 		callArgs.query = callArgs.query || {};
 		callArgs.doc = callArgs.doc || {};
 
@@ -170,8 +170,8 @@ export class ApiService {
 				let observable = this.subject
 					.subscribe(
 						(res: Res<Doc>) => {
-							this.debugLog('message received from observer on callId:', res, callArgs.call_id);
 							if (res.args && res.args.call_id == callArgs.call_id) {
+								this.debugLog('message received from observer on callId:', res, callArgs.call_id);
 								if (res.status == 200) {
 									observer.next(res);
 								} else if (res.status == 291) {
@@ -179,7 +179,7 @@ export class ApiService {
 								} else {
 									observer.error(res);
 								}
-								console.log('completing the observer. with callId:', res.args.call_id);
+								this.debugLog('completing the observer. with callId:', res.args.call_id);
 								observer.complete();
 								observer.unsubscribe();
 								observable.unsubscribe();
@@ -216,7 +216,7 @@ export class ApiService {
 				let sPayload = JSON.stringify({ ...callArgs, iat: tNow, exp: tEnd });
 				let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: callArgs.token });
 				this.debugLog('sending request as JWT token:', callArgs, callArgs.token);
-				this.subject.next({ token: sJWT });
+				this.subject.next({ token: sJWT, call_id: callArgs.call_id });
 				// }
 			}
 		}, 100);

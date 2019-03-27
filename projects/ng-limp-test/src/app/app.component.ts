@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
-import { take } from 'rxjs/operators';
+import { take, retry } from 'rxjs/operators';
 import { ApiService } from 'ng-limp'
+import { Res, Doc } from 'ng-limp';
 
 @Component({
 	selector: 'app-root',
@@ -15,13 +16,26 @@ export class AppComponent implements OnInit {
 	ngOnInit() {
 		this.api.debug = true;
 		this.api.init('ws://localhost:8081/ws', '__ANON')
-			.pipe(take(1))
-			.subscribe((res) => {
-				this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMIN').subscribe();
+			.pipe(retry(10))
+			.subscribe((res: Res<Doc>) => {
+				if (res.args.code == 'CORE_CONN_OK') {
+					// this.api.checkAuth().subscribe((res) => {
+						this.api.call('some/call', { sid: 'bull_crap', token: 'wrong_token' }).subscribe();
+					// });
+				}
 				console.log('res', res);
 			}, (err) => {
-				console.log('err', err);
+				// if (err.type == 'close' && this.api.authed) {
+				// 	this.api.checkAuth();
+				// } else {
+				// 	this.api.call('connection/refresh', {}).pipe(take(1)).subscribe();
+				// }
 			});
+		this.api.authed$.subscribe((res) => {
+			window.location.assign('some-url');
+		}, (err) => {
+
+		})
 	}
 
 	submit(): void {
