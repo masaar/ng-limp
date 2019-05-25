@@ -15,27 +15,44 @@ export class AppComponent implements OnInit {
 
 	ngOnInit() {
 		this.api.debug = true;
-		this.api.init('ws://localhost:8081/ws', '__ANON')
+		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012')
 			.pipe(retry(10))
 			.subscribe((res: Res<Doc>) => {
 				if (res.args.code == 'CORE_CONN_OK') {
-					// this.api.checkAuth().subscribe((res) => {
-						this.api.call('some/call', { sid: 'bull_crap', token: 'wrong_token' }).subscribe();
-					// });
+					this.api.checkAuth().subscribe((res: Res<Doc>) => {
+						console.log('checAuth.res', res);
+					}, (err: Res<Doc>) => {
+						console.log('checAuth.err', err);
+					});
 				}
-				console.log('res', res);
-			}, (err) => {
-				// if (err.type == 'close' && this.api.authed) {
-				// 	this.api.checkAuth();
-				// } else {
-				// 	this.api.call('connection/refresh', {}).pipe(take(1)).subscribe();
-				// }
+				console.log('api.res', res);
+			}, (err: Res<Doc>) => {
+				console.log('api.err', err);
 			});
-		this.api.authed$.subscribe((res) => {
-			window.location.assign('some-url');
-		}, (err) => {
+		this.api.authed$.subscribe((session: Doc) => {
+			console.log('authed$.session', session);
+			if (session) {
+				window.history.replaceState('Object', 'Title', '/authed');
+			} else {
+				window.history.replaceState('Object', 'Title', '/not-authed');
+			}
+		});
+	}
 
-		})
+	auth(): void {
+		this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMIN').subscribe((res: Res<Doc>) => {
+			console.log('auth.res', res);
+		}, (err: Res<Doc>) => {
+			console.log('auth.err', err);
+		});
+	}
+
+	signout(): void {
+		this.api.signout().subscribe((res: Res<Doc>) => {
+			console.log('signout.res', res);
+		}, (err: Res<Doc>) => {
+			console.log('signout.err', err);
+		});	
 	}
 
 	submit(): void {
@@ -55,7 +72,11 @@ export class AppComponent implements OnInit {
 				},
 				photo: document.querySelector('input').files,
 			}
-		}).subscribe((res) => { console.log(res); });
+		}).subscribe((res: Res<Doc>) => {
+			console.log('submit.res', res);
+		}, (err: Res<Doc>) => {
+			console.log('submit.err', err);
+		});
 	}
 
 	createblogcat(): void {
@@ -70,6 +91,10 @@ export class AppComponent implements OnInit {
 					en_AE: 'staff en'
 				}
 			}
-		}).subscribe((res) => { console.log(res); });
+		}).subscribe((res: Res<Doc>) => {
+			console.log('createblogcat.res', res);
+		}, (err: Res<Doc>) => {
+			console.log('createblogcat.err', err);
+		});
 	}
 }

@@ -31,9 +31,9 @@ export class AppComponent implements OnInit {
 	constructor(private api: ApiService) {}
 
 	ngOnInit() {
-		this.api.init('ws://localhost:8081/ws', 'http://localhost:8081', '__ANON').subscribe((res: Res<any>) => {
+		this.api.init('ws://localhost:8081/ws', 'http://localhost:8081', '__ANON').subscribe((res: Res<Doc>) => {
 			console.log('res', res);
-		}, (err: Res<any>) => {
+		}, (err: Res<Doc>) => {
 			console.log('err', err);
 		});
 	}
@@ -61,17 +61,17 @@ Which can be done like:
 ```typescript
 this.api.init('ws://localhost:8081/ws', 'http://localhost:8081', '__ANON')
 .pipe(retry(10))
-.subscribe((res: Res<any>) => {
+.subscribe((res: Res<Doc>) => {
 	if (res.args.code == 'CORE_CONN_OK') {
 		// [DOC] Connection successful. Let's check if we can `reauth` the user:
 		this.api.checkAuth().subscribe((res: Res<Doc>) => {
 			console.log('checkAuth.res', res);
-		}, (err: Res<any>) => {
+		}, (err: Res<Doc>) => {
 			console.log('checkAuth.err', err);
 		});
 	}
 	console.log('api.res', res);
-}, (err: Res<any>) => {
+}, (err: Res<Doc>) => {
 	console.log('api.err', err);
 });
 ```
@@ -79,7 +79,7 @@ this.api.init('ws://localhost:8081/ws', 'http://localhost:8081', '__ANON')
 ## Auth State Detection
 Although, you can detect the user auth state in the subscription of the calls `auth`, `reauth` and `checkAuth`, the best practice is to use the global `authed$` state `Subject`. You can do this by subscripting to `authed$` in the same component (usually `AppComponent`) you are initiating the SDK at. This assures a successful `checkAuth` as part of the `api.init` subscription can be handled. The model suggested is:
 ```typescript
-this.api.authed$.subscribe((session: Boolean | Doc) => {
+this.api.authed$.subscribe((session: Doc) => {
 	if (session) {
 		console.log('We are having an `auth` condition with session:', session);
 	} else {
@@ -96,9 +96,9 @@ Websockets are always-alive connections. A lot can go wrong here resulting in th
 
 this.api.init('ws://localhost:8081/ws', 'http://localhost:8081', '__ANON')
 	.pipe(retry(10))
-	.subscribe((res: Res<any>) => {
+	.subscribe((res: Res<Doc>) => {
 		console.log('api.res', res);
-	}, (err: Res<any>) => {
+	}, (err: Res<Doc>) => {
 		console.log('api.err', err);
 	});
 ```
@@ -129,25 +129,25 @@ init(api: String, anon_token: String): Observable<any> { /*...*/ }
 ## `auth()`
 The method you can use to authenticate the user. Method definition:
 ```typescript
-auth(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): Observable<Res<any>> { /*...*/ }
+auth(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): Observable<Res<Doc>> { /*...*/ }
 ```
 
 ## `reauth()`
 The method you can use to reauthenticate the user. The method would fail if no `sid` and `token` attrs are cached from earlier successful authentication call. This method is not supposed to be called directly, rather use [`checkAuth()`](#checkauth). Method definition:
 ```typescript
-reauth(sid: string = this.cache.get('sid'), token: string = this.cache.get('token')): Observable<Res<any>> { /*...*/ }
+reauth(sid: string = this.cache.get('sid'), token: string = this.cache.get('token')): Observable<Res<Doc>> { /*...*/ }
 ```
 
 ## `signout()`
 The method you can use to `signout` the current user. Upon success, this methods removes all the cached attrs of the session. Method definition:
 ```typescript
-signout(): Observable<Res<any>> { /*...*/ }
+signout(): Observable<Res<Doc>> { /*...*/ }
 ```
 
 ## `checkAuth()`
 The method to check whether there is a cached session and attempt to reauthenticate the user. Method definition:
 ```typescript
-checkAuth(): Observable<Res<any>> { /*...*/ }
+checkAuth(): Observable<Res<Doc>> { /*...*/ }
 ```
 
 ## `generateAuthHash()`
@@ -159,8 +159,10 @@ generateAuthHash(authVar: 'username' | 'email' | 'phone', authVal: string, passw
 ## `call()`
 The most important method in the SDK. This is the method you use to call different endpoints in your LIMP app. Although the `callArgs` object in the params is having full definition of all call attrs, you still usually only need to pass either `query` and/or `doc` in most of the cases. Method definition:
 ```typescript
-call(endpoint: string, callArgs: callArgs): Observable<Res<any>> { /*...*/ }
+call(endpoint: string, callArgs: callArgs): Observable<Res<Doc>> { /*...*/ }
 ```
 
-# Contributions
-...
+# Contribution Guidelines
+Thank you for your interest in `ng-limp`.
+
+Please refer to [Contribution Guidelines](/CONTRIBUTING.md) for more details on contributing to this project.

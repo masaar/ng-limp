@@ -3,7 +3,7 @@ import { webSocket } from 'rxjs/webSocket';
 
 import { CookieService } from 'ngx-cookie';
 import * as rs from 'jsrsasign';
-import { Inject, Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 
 const JWS = rs.jws.JWS;
 
@@ -12,8 +12,21 @@ export interface callArgs {
 	endpoint?: string;
 	sid?: string;
 	token?: string;
-	query?: any;
-	doc?: any;
+	query?: {
+		$search?: string;
+		$sort?: { [attr: string]: 1 | -1 };
+		$skip?: number;
+		$limit?: number;
+		$extn?: boolean;
+		[attr: string]: {
+			val: any;
+			oper?: '$gt' | '$lt' | '$bet' | '$not' | '$regex' | '$all' | '$in';
+			val2?: string;
+		} | string | { [attr: string]: 1 | -1 } | number | boolean;
+	};
+	doc?: {
+		[attr: string]: any;
+	};
 }
 
 export interface Res<T> {
@@ -62,10 +75,10 @@ export class ApiService {
 	fileChunkSize: number = 500 * 1024;
 	debug: boolean = false;
 
-	session!: any;
+	session!: Doc;
 
 	authed: boolean = false;
-	authed$: Subject<boolean> = new Subject();
+	authed$: Subject<Doc> = new Subject();
 
 	constructor(private cache: CacheService) { }
 
@@ -74,11 +87,11 @@ export class ApiService {
 		console.log(...payload);
 	}
 
-	init(api: string, anon_token: string): Observable<any> {
+	init(api: string, anon_token: string): Observable<Res<Doc>> {
 		this.api = api;
 		this.anon_token = anon_token;
 		this.subject = webSocket(this.api);
-		let init = new Observable(
+		let init = new Observable<Res<Doc>>(
 			(observer) => {
 				this.subject.subscribe(
 					(msg: Res<Doc>) => {
@@ -86,16 +99,9 @@ export class ApiService {
 					},
 					(err: Res<Doc>) => {
 						observer.error(err);
-
-						// this.cache.remove('token');
-						// this.cache.remove('sid');
-
-						// this.authed = false;
-						// this.session = undefined;
-						// this.authed$.next(this.session);
 					},
 					() => {
-						this.reconnect();
+						observer.complete();
 					}
 				);
 			}
@@ -103,10 +109,7 @@ export class ApiService {
 		return init;
 	}
 
-	reconnect(): void {
-	}
-
-	call(endpoint: string, callArgs: callArgs, binary: boolean = false): Observable<any> {
+	call(endpoint: string, callArgs: callArgs): Observable<Res<Doc>> {
 		callArgs.sid = (this.authed) ? callArgs.sid || this.cache.get('sid') || 'f00000000000000000000012' : callArgs.sid || 'f00000000000000000000012';
 		callArgs.token = (this.authed) ? callArgs.token || this.cache.get('token') || this.anon_token : callArgs.token || this.anon_token;
 		callArgs.query = callArgs.query || {};
@@ -165,7 +168,7 @@ export class ApiService {
 		}
 		this.pushCall(callArgs, filesProcess);
 
-		let call = new Observable(
+		let call = new Observable<Res<Doc>>(
 			(observer) => {
 				let observable = this.subject
 					.subscribe(
@@ -188,10 +191,6 @@ export class ApiService {
 							if (err.args && err.args.call_id == callArgs.call_id) {
 								observer.error(err);
 							}
-							// if (err._body.args.code == 'CORE_SESSION_INVALID_SESSION') {
-							// 	this.cache.remove('token');
-							// 	this.cache.remove('sid');
-							// }
 						}, () => {
 							observer.complete();
 						}
@@ -230,10 +229,10 @@ export class ApiService {
 		return sJWT.split('.')[1];
 	}
 
-	auth(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): Observable<any> {
+	auth(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): Observable<Res<Doc>> {
 		let doc: any = { hash: this.generateAuthHash(authVar, authVal, password) };
 		doc[authVar] = authVal;
-		let call = new Observable(
+		let call = new Observable<Res<Doc>>(
 			(observer) => {
 				this.authed = false;
 				this.session = undefined;
@@ -243,7 +242,7 @@ export class ApiService {
 				this.cache.remove('sid');
 				this.call('session/auth', {
 					doc: doc
-				}).subscribe((res) => {
+				}).subscribe((res: Res<Doc>) => {
 					this.cache.put('sid', res.args.docs[0]._id);
 					this.cache.put('token', res.args.docs[0].token);
 
@@ -252,7 +251,7 @@ export class ApiService {
 					this.authed$.next(this.session);
 
 					observer.next(res);
-				}, (err) => {
+				}, (err: Res<Doc>) => {
 					observer.error(err);
 				}, () => {
 					observer.complete();
@@ -262,7 +261,7 @@ export class ApiService {
 		return call;
 	}
 
-	reauth(sid: string = this.cache.get('sid'), token: string = this.cache.get('token')): Observable<any> {
+	reauth(sid: string = this.cache.get('sid'), token: string = this.cache.get('token')): Observable<Res<Doc>> {
 		let oHeader = { alg: 'HS256', typ: 'JWT' };
 		let sHeader = JSON.stringify(oHeader);
 		let sPayload = JSON.stringify({ token: token });
@@ -274,12 +273,12 @@ export class ApiService {
 		});
 	}
 
-	signout(): Observable<any> {
-		let call = new Observable(
+	signout(): Observable<Res<Doc>> {
+		let call = new Observable<Res<Doc>>(
 			(observer) => {
 				this.call('session/signout', {
 					query: { _id: { val: this.cache.get('sid') } }
-				}).subscribe((res) => {
+				}).subscribe((res: Res<Doc>) => {
 					this.authed = false;
 					this.session = undefined;
 					this.authed$.next(this.session);
@@ -287,8 +286,8 @@ export class ApiService {
 					this.cache.remove('token');
 					this.cache.remove('sid');
 
-					observer.next(true);
-				}, (err) => {
+					observer.next(res);
+				}, (err: Res<Doc>) => {
 					observer.error(err);
 				});
 
@@ -297,20 +296,20 @@ export class ApiService {
 		return call;
 	}
 
-	checkAuth(): Observable<any> {
+	checkAuth(): Observable<Res<Doc>> {
 		this.debugLog('attempting checkAuth');
-		let check = new Observable(
+		let check = new Observable<Res<Doc>>(
 			(observer) => {
 				if (!this.cache.get('token') || !this.cache.get('sid')) observer.error(new Error('No credentials cached.'));
 				this.reauth(this.cache.get('sid'), this.cache.get('token')).subscribe(
-					(res) => {
+					(res: Res<Doc>) => {
 						this.authed = true;
 						this.session = res.args.docs[0];
 						this.authed$.next(this.session);
 
 						observer.next(res);
 					},
-					(err) => {
+					(err: Res<Doc>) => {
 						this.cache.remove('token');
 						this.cache.remove('sid');
 
