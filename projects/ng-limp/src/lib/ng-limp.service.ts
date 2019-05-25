@@ -17,12 +17,12 @@ export interface callArgs {
 		$sort?: { [attr: string]: 1 | -1 };
 		$skip?: number;
 		$limit?: number;
-		$extn?: boolean;
+		$extn?: boolean | Array<string>;
 		[attr: string]: {
 			val: any;
 			oper?: '$gt' | '$lt' | '$bet' | '$not' | '$regex' | '$all' | '$in';
 			val2?: string;
-		} | string | { [attr: string]: 1 | -1 } | number | boolean;
+		} | string | { [attr: string]: 1 | -1 } | number | boolean | Array<string>;
 	};
 	doc?: {
 		[attr: string]: any;
