@@ -7,23 +7,25 @@ import { Injectable } from '@angular/core';
 
 const JWS = rs.jws.JWS;
 
+export interface queryStep {
+	[attr: number]: queryStep | {
+		$search?: string;
+		$sort?: { [attr: string]: 1 | -1 };
+		$skip?: number;
+		$limit?: number;
+		$extn?: false | Array<string>;
+		$attrs?: Array<string>;
+		$group: Array<{ by: string; count: number; }>;
+		[attr: string]: { $not: any } | { $eq: any } | { $gt: number } | { $gte: number } | { $lt: number } | { $lte: number } | { $bet: [number, number] } | { $all: Array<any> } | { $in: Array<any> } | { $attrs: Array<string>; } | { $skip: false | Array<string>; } | queryStep | any;
+	}
+}
+
 export interface callArgs {
 	call_id?: string;
 	endpoint?: string;
 	sid?: string;
 	token?: string;
-	query?: {
-		$search?: string;
-		$sort?: { [attr: string]: 1 | -1 };
-		$skip?: number;
-		$limit?: number;
-		$extn?: boolean | Array<string>;
-		[attr: string]: {
-			val: any;
-			oper?: '$gt' | '$lt' | '$bet' | '$not' | '$regex' | '$all' | '$in';
-			val2?: string;
-		} | string | { [attr: string]: 1 | -1 } | number | boolean | Array<string>;
-	};
+	query?: queryStep;
 	doc?: {
 		[attr: string]: any;
 	};
@@ -269,7 +271,9 @@ export class ApiService {
 		return this.call('session/reauth', {
 			sid: 'f00000000000000000000012',
 			token: this.anon_token,
-			query: { _id: { val: sid || 'f00000000000000000000012' }, hash: { val: sJWT.split('.')[1] } }
+			query: [
+				{ _id: sid || 'f00000000000000000000012', hash: sJWT.split('.')[1] }
+			]
 		});
 	}
 
@@ -277,7 +281,9 @@ export class ApiService {
 		let call = new Observable<Res<Doc>>(
 			(observer) => {
 				this.call('session/signout', {
-					query: { _id: { val: this.cache.get('sid') } }
+					query: [
+						{ _id: this.cache.get('sid') }
+					]
 				}).subscribe((res: Res<Doc>) => {
 					this.authed = false;
 					this.session = undefined;
