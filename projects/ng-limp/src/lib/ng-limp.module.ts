@@ -2,13 +2,12 @@ import { NgModule, ModuleWithProviders } from '@angular/core';
 
 import { CookieModule } from 'ngx-cookie';
 
-import { NgLimpComponent } from './ng-limp.component';
 import { ApiService, CacheService } from './ng-limp.service';
 
 @NgModule({
-	declarations: [ NgLimpComponent ],
+	declarations: [],
 	imports: [ CookieModule.forRoot() ],
-	exports: [ NgLimpComponent ]
+	exports: []
 })
 export class NgLimpModule {
 	public static forRoot(): ModuleWithProviders {
