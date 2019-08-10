@@ -8,7 +8,7 @@ import * as rs from 'jsrsasign';
 
 const JWS = rs.jws.JWS;
 
-interface QueryStep {
+export interface QueryStep {
 	$search?: string;
 	$sort?: {
 		[attr: string]: 1 | -1;
@@ -46,7 +46,7 @@ interface QueryStep {
 	} | Query | string | { [attr: string]: 1 | -1; } | number | false | Array<string>;
 }
 
-interface Query extends Array<QueryStep> {}
+export interface Query extends Array<QueryStep> {}
 
 export interface callArgs {
 	call_id?: string;
