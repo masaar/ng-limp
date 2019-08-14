@@ -11,7 +11,7 @@ import { Res, Doc } from 'ng-limp';
 export class AppComponent implements OnInit {
 	title = 'ng-limp-test';
 
-	constructor(private api: ApiService) { }
+	constructor(public api: ApiService) { }
 
 	ngOnInit() {
 		this.api.debug = true;

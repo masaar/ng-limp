@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
+import { take } from 'rxjs/operators';
 
 import { CookieService } from 'ngx-cookie';
 import * as rs from 'jsrsasign';
-
 
 const JWS = rs.jws.JWS;
 
@@ -67,6 +67,7 @@ export interface Res<T> {
 		count?: number;
 		total?: number;
 		groups?: any;
+		__session?: Session;
 		// [DOC] Failed call attrs
 		code?: string;
 	}
@@ -77,6 +78,38 @@ export interface Res<T> {
 export interface Doc {
 	_id: string;
 	[key: string]: any;
+}
+
+export interface Session extends Doc {
+	user: User;
+	host_add: string;
+	user_agent: string;
+	timestamp: string;
+	expiry: string;
+	token: string;
+}
+
+export interface User extends Doc {
+	username: string;
+	email: string;
+	phone: string;
+	name: { [key: string]: string };
+	bio: { [key: string]: string };
+	address: { [key: string]: string };
+	postal_code: string;
+	website: string;
+	locale: string;
+	create_time: string;
+	login_time: string;
+	groups: Array<string>,
+	privileges: { [key: string]: Array<string>; },
+	username_hash?: string;
+	email_hash?: string;
+	phone_hash?: string;
+	status: 'active' | 'banned' | 'deleted' | 'disabled_password',
+	attrs: {
+		[key: string]: any;
+	}
 }
 
 @Injectable()
@@ -105,10 +138,10 @@ export class ApiService {
 	fileChunkSize: number = 500 * 1024;
 	debug: boolean = false;
 
-	session!: Doc;
+	session!: Session;
 
 	authed: boolean = false;
-	authed$: Subject<Doc> = new Subject();
+	authed$: Subject<Session> = new Subject();
 
 	constructor(private cache: CacheService) { }
 
@@ -124,8 +157,26 @@ export class ApiService {
 		let init = new Observable<Res<Doc>>(
 			(observer) => {
 				this.subject.subscribe(
-					(msg: Res<Doc>) => {
-						observer.next(msg);
+					(res: Res<Doc>) => {
+						if (res.args && res.args.__session) {
+							this.debugLog('Response has session obj');
+							if (res.args.__session._id == 'f00000000000000000000012') {
+								this.authed = false;
+								this.session = null;
+								this.authed$.next(null);
+								this.cache.remove('token');
+								this.cache.remove('sid');
+								this.debugLog('Session is null');
+							} else {
+								this.cache.put('sid', res.args.__session._id);
+								this.cache.put('token', res.args.__session.token);
+								this.authed = true;
+								this.session = res.args.__session;
+								this.authed$.next(this.session);
+								this.debugLog('Session updated');
+							}
+						}
+						observer.next(res);
 					},
 					(err: Res<Doc>) => {
 						observer.error(err);
@@ -185,7 +236,7 @@ export class ApiService {
 										content: byteArray.slice(byteArrayIndex, byteArrayIndex + this.fileChunkSize).join(',')
 									}
 								}
-							}).subscribe((res) => {
+							}).pipe(take(1)).subscribe((res) => {
 								filesProcess.splice(filesProcess.indexOf(`${attr}.${i}`), 1);
 							});
 							byteArrayIndex += this.fileChunkSize;
@@ -201,7 +252,7 @@ export class ApiService {
 		let call = new Observable<Res<Doc>>(
 			(observer) => {
 				let observable = this.subject
-					.subscribe(
+					.pipe(take(1)).subscribe(
 						(res: Res<Doc>) => {
 							if (res.args && res.args.call_id == callArgs.call_id) {
 								this.debugLog('message received from observer on callId:', res, callArgs.call_id);
@@ -252,7 +303,7 @@ export class ApiService {
 	generateAuthHash(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): string {
 		let oHeader = { alg: 'HS256', typ: 'JWT' };
 		let sHeader = JSON.stringify(oHeader);
-		let sPayload = JSON.stringify({ hash: [authVar, authVal, password] });
+		let sPayload = JSON.stringify({ hash: [authVar, authVal, password, this.anon_token] });
 		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: password });
 		return sJWT.split('.')[1];
 	}
@@ -262,22 +313,9 @@ export class ApiService {
 		doc[authVar] = authVal;
 		let call = new Observable<Res<Doc>>(
 			(observer) => {
-				this.authed = false;
-				this.session = undefined;
-				this.authed$.next(this.session);
-
-				this.cache.remove('token');
-				this.cache.remove('sid');
 				this.call('session/auth', {
 					doc: doc
-				}).subscribe((res: Res<Doc>) => {
-					this.cache.put('sid', res.args.docs[0]._id);
-					this.cache.put('token', res.args.docs[0].token);
-
-					this.authed = true;
-					this.session = res.args.docs[0];
-					this.authed$.next(this.session);
-
+				}).pipe(take(1)).subscribe((res: Res<Session>) => {
 					observer.next(res);
 				}, (err: Res<Doc>) => {
 					observer.error(err);
@@ -294,13 +332,21 @@ export class ApiService {
 		let sHeader = JSON.stringify(oHeader);
 		let sPayload = JSON.stringify({ token: token });
 		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: token });
-		return this.call('session/reauth', {
+		let call: Observable<Res<Doc>> = this.call('session/reauth', {
 			sid: 'f00000000000000000000012',
 			token: this.anon_token,
 			query: [
 				{ _id: sid || 'f00000000000000000000012', hash: sJWT.split('.')[1] }
 			]
 		});
+		call.pipe(take(1)).subscribe((res: Res<Session>) => {}, (err: Res<Session>) => {
+			this.cache.remove('token');
+			this.cache.remove('sid');
+			this.authed = false;
+			this.session = null;
+			this.authed$.next(null);
+		});
+		return call;
 	}
 
 	signout(): Observable<Res<Doc>> {
@@ -310,14 +356,7 @@ export class ApiService {
 					query: [
 						{ _id: this.cache.get('sid') }
 					]
-				}).subscribe((res: Res<Doc>) => {
-					this.authed = false;
-					this.session = undefined;
-					this.authed$.next(this.session);
-
-					this.cache.remove('token');
-					this.cache.remove('sid');
-
+				}).pipe(take(1)).subscribe((res: Res<Session>) => {
 					observer.next(res);
 				}, (err: Res<Doc>) => {
 					observer.error(err);
@@ -333,22 +372,11 @@ export class ApiService {
 		let check = new Observable<Res<Doc>>(
 			(observer) => {
 				if (!this.cache.get('token') || !this.cache.get('sid')) observer.error(new Error('No credentials cached.'));
-				this.reauth(this.cache.get('sid'), this.cache.get('token')).subscribe(
-					(res: Res<Doc>) => {
-						this.authed = true;
-						this.session = res.args.docs[0];
-						this.authed$.next(this.session);
-
+				this.reauth(this.cache.get('sid'), this.cache.get('token')).pipe(take(1)).subscribe(
+					(res: Res<Session>) => {
 						observer.next(res);
 					},
 					(err: Res<Doc>) => {
-						this.cache.remove('token');
-						this.cache.remove('sid');
-
-						this.authed = false;
-						this.session = undefined;
-						this.authed$.next(this.session);
-
 						observer.error({
 							status: 403,
 							message: 'Wrong credentials cached.'
