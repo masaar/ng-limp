@@ -67,7 +67,7 @@ export interface Res<T> {
 		count?: number;
 		total?: number;
 		groups?: any;
-		__session?: Session;
+		session?: Session;
 		// [DOC] Failed call attrs
 		code?: string;
 	}
@@ -158,9 +158,9 @@ export class ApiService {
 			(observer) => {
 				this.subject.subscribe(
 					(res: Res<Doc>) => {
-						if (res.args && res.args.__session) {
+						if (res.args && res.args.session) {
 							this.debugLog('Response has session obj');
-							if (res.args.__session._id == 'f00000000000000000000012') {
+							if (res.args.session._id == 'f00000000000000000000012') {
 								this.authed = false;
 								this.session = null;
 								this.authed$.next(null);
@@ -168,10 +168,10 @@ export class ApiService {
 								this.cache.remove('sid');
 								this.debugLog('Session is null');
 							} else {
-								this.cache.put('sid', res.args.__session._id);
-								this.cache.put('token', res.args.__session.token);
+								this.cache.put('sid', res.args.session._id);
+								this.cache.put('token', res.args.session.token);
 								this.authed = true;
-								this.session = res.args.__session;
+								this.session = res.args.session;
 								this.authed$.next(this.session);
 								this.debugLog('Session updated');
 							}
