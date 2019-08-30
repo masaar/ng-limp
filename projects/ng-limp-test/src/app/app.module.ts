@@ -1,9 +1,9 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { NgModule } from '@angular/core';
 
+import { NgLimpModule } from 'projects/ng-limp/src/public_api';
+
 import { AppComponent } from './app.component';
-import { NgLimpModule } from 'ng-limp';
-import { CookieModule } from 'ngx-cookie';
 
 @NgModule({
 	declarations: [

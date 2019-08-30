@@ -62,6 +62,7 @@ export interface callArgs {
 export interface Res<T> {
 	args: {
 		call_id: string;
+		watch?: string;
 		// [DOC] Succeful call attrs
 		docs?: Array<T>;
 		count?: number;
@@ -140,6 +141,9 @@ export class ApiService {
 
 	session!: Session;
 
+	inited: boolean = false;
+	inited$: Subject<boolean> = new Subject();
+
 	authed: boolean = false;
 	authed$: Subject<Session> = new Subject();
 
@@ -151,6 +155,17 @@ export class ApiService {
 	}
 
 	init(api: string, anon_token: string): Observable<Res<Doc>> {
+		if (this.subject) {
+			this.authed = false;
+			this.session = null;
+			this.authed$.next(null);
+
+			this.inited = false;
+			this.inited$.next(false);
+
+			this.subject.complete();
+			this.subject.unsubscribe();
+		}
 		this.api = api;
 		this.anon_token = anon_token;
 		this.subject = webSocket(this.api);
@@ -158,7 +173,12 @@ export class ApiService {
 			(observer) => {
 				this.subject.subscribe(
 					(res: Res<Doc>) => {
-						if (res.args && res.args.session) {
+						if (res.args && res.args.code == 'CORE_CONN_READY') {
+							this.call('conn/verify', {}).subscribe();
+						} else if (res.args && res.args.code == 'CORE_CONN_OK') {
+							this.inited = true;
+							this.inited$.next(true);
+						} else if (res.args && res.args.session) {
 							this.debugLog('Response has session obj');
 							if (res.args.session._id == 'f00000000000000000000012') {
 								this.authed = false;
@@ -179,9 +199,13 @@ export class ApiService {
 						observer.next(res);
 					},
 					(err: Res<Doc>) => {
+						this.inited = false;
+						this.inited$.next(false);
 						observer.error(err);
 					},
 					() => {
+						this.inited = false;
+						this.inited$.next(false);
 						observer.complete();
 					}
 				);
@@ -252,7 +276,7 @@ export class ApiService {
 		let call = new Observable<Res<Doc>>(
 			(observer) => {
 				let observable = this.subject
-					.pipe(take(1)).subscribe(
+					.subscribe(
 						(res: Res<Doc>) => {
 							if (res.args && res.args.call_id == callArgs.call_id) {
 								this.debugLog('message received from observer on callId:', res, callArgs.call_id);
@@ -262,9 +286,12 @@ export class ApiService {
 									observer.error(res);
 								}
 								this.debugLog('completing the observer. with callId:', res.args.call_id);
-								observer.complete();
-								observer.unsubscribe();
-								observable.unsubscribe();
+
+								if (!res.args.watch) {
+									observer.complete();
+									observer.unsubscribe();
+									observable.unsubscribe();
+								}
 							}
 						}, (err: Res<Doc>) => {
 							if (err.args && err.args.call_id == callArgs.call_id) {

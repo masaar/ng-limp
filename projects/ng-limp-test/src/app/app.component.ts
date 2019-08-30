@@ -1,7 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { take, retry } from 'rxjs/operators';
-import { ApiService } from 'ng-limp'
-import { Res, Doc } from 'ng-limp';
+
+import { ApiService, Res, Doc } from 'projects/ng-limp/src/public_api';
+
+
+// import { ApiService } from 'ng-limp'
+// import { Res, Doc } from 'ng-limp';
 
 @Component({
 	selector: 'app-root',
@@ -15,20 +19,15 @@ export class AppComponent implements OnInit {
 
 	ngOnInit() {
 		this.api.debug = true;
-		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012')
-			.pipe(retry(10))
-			.subscribe((res: Res<Doc>) => {
-				if (res.args.code == 'CORE_CONN_OK') {
-					this.api.checkAuth().subscribe((res: Res<Doc>) => {
-						console.log('checAuth.res', res);
-					}, (err: Res<Doc>) => {
-						console.log('checAuth.err', err);
-					});
-				}
-				console.log('api.res', res);
-			}, (err: Res<Doc>) => {
-				console.log('api.err', err);
-			});
+		this.api.inited$.subscribe((init: boolean) => {
+			if (init) {
+				this.api.checkAuth().subscribe((res: Res<Doc>) => {
+					console.log('checAuth.res', res);
+				}, (err: Res<Doc>) => {
+					console.log('checAuth.err', err);
+				});
+			}
+		});
 		this.api.authed$.subscribe((session: Doc) => {
 			console.log('authed$.session', session);
 			if (session) {
@@ -37,6 +36,16 @@ export class AppComponent implements OnInit {
 				window.history.replaceState('Object', 'Title', '/not-authed');
 			}
 		});
+	}
+
+	init(): void {
+		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012')
+			.pipe(retry(10))
+			.subscribe((res: Res<Doc>) => {
+				console.log('api.res', res);
+			}, (err: Res<Doc>) => {
+				console.log('api.err', err);
+			});
 	}
 
 	auth(): void {
