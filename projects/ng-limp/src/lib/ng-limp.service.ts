@@ -180,9 +180,11 @@ export class ApiService {
 			} else if (res.args && res.args.session) {
 				this.debugLog('Response has session obj');
 				if (res.args.session._id == 'f00000000000000000000012') {
-					this.authed = false;
-					this.session = null;
-					this.authed$.next(null);
+					if (this.authed) {
+						this.authed = false;
+						this.session = null;
+						this.authed$.next(null);
+					}
 					this.cache.remove('token');
 					this.cache.remove('sid');
 					this.debugLog('Session is null');
@@ -223,11 +225,16 @@ export class ApiService {
 	reset(skipSubject: boolean = false): void {
 		try {
 			this.authed = false;
-			this.session = null;
-			this.authed$.next(null);
+			if (this.session) {
+				this.session = null;
+				this.authed = false;
+				this.authed$.next(null);
+			}
 	
-			this.inited = false;
-			this.inited$.next(false);
+			if (this.inited) {
+				this.inited = false;
+				this.inited$.next(false);
+			}
 	
 			if (!skipSubject) {
 				this.skipForceRetry = true;
@@ -380,9 +387,11 @@ export class ApiService {
 		call.subscribe((res: Res<Session>) => {}, (err: Res<Session>) => {
 			this.cache.remove('token');
 			this.cache.remove('sid');
-			this.authed = false;
-			this.session = null;
-			this.authed$.next(null);
+			if (this.authed) {
+				this.authed = false;
+				this.session = null;
+				this.authed$.next(null);
+			}
 		});
 		return call;
 	}
