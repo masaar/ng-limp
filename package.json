@@ -1,6 +1,6 @@
 {
   "name": "ng-limp",
-  "version": "5.7.0b1",
+  "version": "5.7.0-b2",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",

@@ -21,11 +21,7 @@ export class AppComponent implements OnInit {
 		this.api.debug = true;
 		this.api.inited$.subscribe((init: boolean) => {
 			if (init) {
-				this.api.checkAuth().subscribe((res: Res<Doc>) => {
-					console.log('checAuth.res', res);
-				}, (err: Res<Doc>) => {
-					console.log('checAuth.err', err);
-				});
+				this.api.checkAuth();
 			}
 		});
 		this.api.authed$.subscribe((session: Doc) => {
@@ -39,29 +35,17 @@ export class AppComponent implements OnInit {
 	}
 
 	init(): void {
-		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012')
-			.pipe(retry(10))
-			.subscribe((res: Res<Doc>) => {
-				console.log('api.res', res);
-			}, (err: Res<Doc>) => {
-				console.log('api.err', err);
-			});
+		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012', 200);
 	}
 
 	auth(): void {
-		this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMIN').subscribe((res: Res<Doc>) => {
-			console.log('auth.res', res);
-		}, (err: Res<Doc>) => {
-			console.log('auth.err', err);
-		});
+		this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMIN');
+		//.subscribe((res) => { alert('Authed succefully!') });
 	}
 
 	signout(): void {
-		this.api.signout().subscribe((res: Res<Doc>) => {
-			console.log('signout.res', res);
-		}, (err: Res<Doc>) => {
-			console.log('signout.err', err);
-		});	
+		this.api.signout();
+		//.subscribe((res) => { alert('Singed-out succefully!') });
 	}
 
 	submit(): void {

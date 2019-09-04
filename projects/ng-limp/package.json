@@ -1,7 +1,7 @@
 {
 	"name": "ng-limp",
 	"description": "Angular SDK for LIMP",
-	"version": "5.7.0b1",
+	"version": "5.7.0-b2",
 	"license": "SEE LICENSE IN LICENSE",
 	"author": {
 		"name": "Mahmoud Abduljawad",
