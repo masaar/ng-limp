@@ -4,147 +4,30 @@ import { Observable, Subject } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 import { take, retry } from 'rxjs/operators';
 
-import { CookieService } from 'ngx-cookie';
 import * as rs from 'jsrsasign';
+
+import { callArgs, Res, Doc, Session, InitedStatus } from './ng-limp.models';
+import { CacheService } from './cache.service';
 
 const JWS = rs.jws.JWS;
 
-export interface QueryStep {
-	$search?: string;
-	$sort?: {
-		[attr: string]: 1 | -1;
-	};
-	$skip?: number;
-	$limit?: number;
-	$extn?: false | Array<string>;
-	$attrs?: Array<string>;
-	$group?: Array<{
-		by: string;
-		count: number;
-	}>;
-	[attr: string]: {
-		$not: any;
-	} | {
-		$eq: any;
-	} | {
-		$gt: number | string;
-	} | {
-		$gte: number | string;
-	} | {
-		$lt: number | string;
-	} | {
-		$lte: number | string;
-	} | {
-		$bet: [number, number] | [string, string];
-	} | {
-		$all: Array<any>;
-	} | {
-		$in: Array<any>;
-	} | {
-		$attrs: Array<string>;
-	} | {
-		$skip: false | Array<string>;
-	} | Query | string | { [attr: string]: 1 | -1; } | number | false | Array<string>;
-}
-
-export interface Query extends Array<QueryStep> {}
-
-export interface callArgs {
-	call_id?: string;
-	endpoint?: string;
-	sid?: string;
-	token?: string;
-	query?: Query;
-	doc?: {
-		[attr: string]: any;
-	};
-}
-
-export interface Res<T> {
-	args: {
-		call_id: string;
-		watch?: string;
-		// [DOC] Succeful call attrs
-		docs?: Array<T>;
-		count?: number;
-		total?: number;
-		groups?: any;
-		session?: Session;
-		// [DOC] Failed call attrs
-		code?: string;
-	}
-	msg: string;
-	status: number;
-}
-
-export interface Doc {
-	_id: string;
-	[key: string]: any;
-}
-
-export interface Session extends Doc {
-	user: User;
-	host_add: string;
-	user_agent: string;
-	timestamp: string;
-	expiry: string;
-	token: string;
-}
-
-export interface User extends Doc {
-	username: string;
-	email: string;
-	phone: string;
-	name: { [key: string]: string };
-	bio: { [key: string]: string };
-	address: { [key: string]: string };
-	postal_code: string;
-	website: string;
-	locale: string;
-	create_time: string;
-	login_time: string;
-	groups: Array<string>,
-	privileges: { [key: string]: Array<string>; },
-	username_hash?: string;
-	email_hash?: string;
-	phone_hash?: string;
-	status: 'active' | 'banned' | 'deleted' | 'disabled_password',
-	attrs: {
-		[key: string]: any;
-	}
-}
-
-@Injectable()
-export class CacheService {
-
-	constructor(private cookie: CookieService) { }
-
-	get(key: string): string {
-		return this.cookie.get(key);
-	}
-
-	put(key: string, val: string): void {
-		this.cookie.put(key, val);
-	}
-
-	remove(key: string): void {
-		this.cookie.remove(key);
-	}
-}
-
 @Injectable()
 export class ApiService {
+
+	debug: boolean = false;
+	fileChunkSize: number = 500 * 1024;
+	authHashLevel: 5.0 | 5.6 = 5.6;
+
 	subject!: Subject<any>;
 	skipForceRetry: boolean = false;
+
 	api!: string;
 	anonToken!: string;
-	fileChunkSize: number = 500 * 1024;
-	debug: boolean = false;
 
 	session!: Session;
 
-	inited: boolean = false;
-	inited$: Subject<boolean> = new Subject();
+	inited: InitedStatus['INITED'] | InitedStatus['NOT_INITED'] | InitedStatus['FINISHED'] = 'NOT_INITED';
+	inited$: Subject<InitedStatus['INITED'] | InitedStatus['NOT_INITED'] | InitedStatus['FINISHED']> = new Subject();
 
 	authed: boolean = false;
 	authed$: Subject<Session> = new Subject();
@@ -173,8 +56,8 @@ export class ApiService {
 				this.anonToken = anonToken;
 				this.call('conn/verify', {}).subscribe();
 			} else if (res.args && res.args.code == 'CORE_CONN_OK') {
-				this.inited = true;
-				this.inited$.next(true);
+				this.inited = 'INITED';
+				this.inited$.next('INITED');
 			} else if (res.args && res.args.code == 'CORE_CONN_CLOSED') {
 				this.reset();
 			} else if (res.args && res.args.session) {
@@ -199,10 +82,10 @@ export class ApiService {
 			}
 		}, (err: Res<Doc>) => {
 			this.debugLog('Received error:', err);
-			this.reset();
+			this.reset(false, 'FINISHED');
 		}, () => {
 			this.debugLog('Connection clean-closed');
-			this.reset();
+			this.reset(false, 'FINISHED');
 			if (!this.skipForceRetry && forceRetry) {
 				if (retryCount-- < 1) {
 					this.debugLog('Skipped re-init connection after clean-close due to out-of-count retryCount.');
@@ -222,7 +105,7 @@ export class ApiService {
 		return this.call('conn/close', {});
 	}
 
-	reset(skipSubject: boolean = false): void {
+	reset(skipSubject: boolean = false, initedStatus: InitedStatus['NOT_INITED'] | InitedStatus['FINISHED'] = 'NOT_INITED'): void {
 		try {
 			this.authed = false;
 			if (this.session) {
@@ -232,8 +115,8 @@ export class ApiService {
 			}
 	
 			if (this.inited) {
-				this.inited = false;
-				this.inited$.next(false);
+				this.inited = initedStatus;
+				this.inited$.next(initedStatus);
 			}
 	
 			if (!skipSubject) {
@@ -359,7 +242,11 @@ export class ApiService {
 	generateAuthHash(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): string {
 		let oHeader = { alg: 'HS256', typ: 'JWT' };
 		let sHeader = JSON.stringify(oHeader);
-		let sPayload = JSON.stringify({ hash: [authVar, authVal, password, this.anonToken] });
+		let hashObj = [authVar, authVal, password];
+		if (this.authHashLevel == 5.6) {
+			hashObj.push(this.anonToken);
+		}
+		let sPayload = JSON.stringify({ hash: hashObj });
 		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: password });
 		return sJWT.split('.')[1];
 	}

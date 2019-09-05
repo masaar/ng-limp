@@ -11,8 +11,7 @@ import { AppComponent } from './app.component';
 	],
 	imports: [
 		BrowserModule,
-		// CookieModule.forRoot(),
-		NgLimpModule.forRoot()
+		NgLimpModule
 	],
 	providers: [],
 	bootstrap: [AppComponent]

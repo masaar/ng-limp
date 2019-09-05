@@ -19,9 +19,15 @@ export class AppComponent implements OnInit {
 
 	ngOnInit() {
 		this.api.debug = true;
-		this.api.inited$.subscribe((init: boolean) => {
-			if (init) {
-				this.api.checkAuth();
+		this.api.inited$.subscribe((init) => {
+			if (init == 'INITED') {
+				try {
+					this.api.checkAuth();
+				} catch (err) {
+					console.log(err);
+				}
+			} else if (init == 'FINISHED') {
+				alert('I am dead x_x');
 			}
 		});
 		this.api.authed$.subscribe((session: Doc) => {
@@ -35,7 +41,7 @@ export class AppComponent implements OnInit {
 	}
 
 	init(): void {
-		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012', 200);
+		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012');
 	}
 
 	auth(): void {
