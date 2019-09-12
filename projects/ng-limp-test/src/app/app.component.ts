@@ -4,7 +4,7 @@ import { take, retry } from 'rxjs/operators';
 import { ApiService, Res, Doc } from 'projects/ng-limp/src/public_api';
 
 
-// import { ApiService } from 'ng-limp'
+// import { ApiService, Query, QueryStep, Doc } from 'ng-limp'
 // import { Res, Doc } from 'ng-limp';
 
 @Component({
@@ -14,20 +14,27 @@ import { ApiService, Res, Doc } from 'projects/ng-limp/src/public_api';
 })
 export class AppComponent implements OnInit {
 	title = 'ng-limp-test';
+	retryCount: number = 3;
 
 	constructor(public api: ApiService) { }
 
 	ngOnInit() {
 		this.api.debug = true;
 		this.api.inited$.subscribe((init) => {
-			if (init == 'INITED') {
+			if (init) {
 				try {
 					this.api.checkAuth();
 				} catch (err) {
 					console.log(err);
 				}
-			} else if (init == 'FINISHED') {
-				alert('I am dead x_x');
+			} else {
+				console.log('will try to reconnect');
+				if (this.retryCount > 0) {
+					this.retryCount--;
+					this.init();
+				} else {
+					alert('I\'m dead');
+				}
 			}
 		});
 		this.api.authed$.subscribe((session: Doc) => {

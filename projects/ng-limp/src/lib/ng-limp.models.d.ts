@@ -102,9 +102,3 @@ export interface User extends Doc {
 		[key: string]: any;
 	}
 }
-
-export interface InitedStatus {
-	INITED: 'INITED';
-	NOT_INITED: 'NOT_INITED';
-	FINISHED: 'FINISHED';
-}

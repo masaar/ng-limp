@@ -6,7 +6,7 @@ import { take, retry } from 'rxjs/operators';
 
 import * as rs from 'jsrsasign';
 
-import { callArgs, Res, Doc, Session, InitedStatus } from './ng-limp.models';
+import { callArgs, Res, Doc, Session } from './ng-limp.models';
 import { CacheService } from './cache.service';
 
 const JWS = rs.jws.JWS;
@@ -19,15 +19,14 @@ export class ApiService {
 	authHashLevel: 5.0 | 5.6 = 5.6;
 
 	subject!: Subject<any>;
-	skipForceRetry: boolean = false;
 
 	api!: string;
 	anonToken!: string;
 
 	session!: Session;
 
-	inited: InitedStatus['INITED'] | InitedStatus['NOT_INITED'] | InitedStatus['FINISHED'] = 'NOT_INITED';
-	inited$: Subject<InitedStatus['INITED'] | InitedStatus['NOT_INITED'] | InitedStatus['FINISHED']> = new Subject();
+	inited: boolean;
+	inited$: Subject<boolean> = new Subject();
 
 	authed: boolean = false;
 	authed$: Subject<Session> = new Subject();
@@ -39,7 +38,7 @@ export class ApiService {
 		console.log(...payload);
 	}
 
-	init(api: string, anonToken: string, retryCount: number = 10, forceRetry: boolean = true): Observable<Res<Doc>> {
+	init(api: string, anonToken: string): Observable<Res<Doc>> {
 		this.debugLog('Resetting SDK before init');
 		this.reset();
 		this.api = api;
@@ -48,16 +47,15 @@ export class ApiService {
 		this.debugLog('Attempting to connect');
 
 		this.subject
-		.pipe(retry(retryCount))
 		.subscribe((res: Res<Doc>) => {
 			this.debugLog('Received new message:', res);
 			if (res.args && res.args.code == 'CORE_CONN_READY') {
-				this.reset(true);
+				this.reset();
 				this.anonToken = anonToken;
 				this.call('conn/verify', {}).subscribe();
 			} else if (res.args && res.args.code == 'CORE_CONN_OK') {
-				this.inited = 'INITED';
-				this.inited$.next('INITED');
+				this.inited = true;
+				this.inited$.next(true);
 			} else if (res.args && res.args.code == 'CORE_CONN_CLOSED') {
 				this.reset();
 			} else if (res.args && res.args.session) {
@@ -82,30 +80,22 @@ export class ApiService {
 			}
 		}, (err: Res<Doc>) => {
 			this.debugLog('Received error:', err);
-			this.reset(false, 'FINISHED');
+			this.reset();
 		}, () => {
 			this.debugLog('Connection clean-closed');
-			this.reset(false, 'FINISHED');
-			if (!this.skipForceRetry && forceRetry) {
-				if (retryCount-- < 1) {
-					this.debugLog('Skipped re-init connection after clean-close due to out-of-count retryCount.');
-				} else {
-					this.debugLog('Re-init connection after clean-close due to forceRetry.');
-					this.init(api, anonToken, retryCount--, forceRetry);
-				}
-			}
+			this.reset();
 		});
-
-		this.skipForceRetry = false;
 
 		return this.subject;
 	}
 
 	close(): Observable<Res<Doc>> {
-		return this.call('conn/close', {});
+		let call = this.call('conn/close', {});
+		call.subscribe();
+		return call;
 	}
 
-	reset(skipSubject: boolean = false, initedStatus: InitedStatus['NOT_INITED'] | InitedStatus['FINISHED'] = 'NOT_INITED'): void {
+	reset(): void {
 		try {
 			this.authed = false;
 			if (this.session) {
@@ -115,15 +105,8 @@ export class ApiService {
 			}
 	
 			if (this.inited) {
-				this.inited = initedStatus;
-				this.inited$.next(initedStatus);
-			}
-	
-			if (!skipSubject) {
-				this.skipForceRetry = true;
-
-				this.subject.complete();
-				this.subject.unsubscribe();
+				this.inited = false;
+				this.inited$.next(false);
 			}
 		} catch { }
 	}
