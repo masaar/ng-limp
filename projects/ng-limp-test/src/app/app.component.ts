@@ -78,7 +78,7 @@ export class AppComponent implements OnInit {
 				},
 				photo: document.querySelector('input').files,
 			}
-		}).subscribe((res: Res<Doc>) => {
+		}, true).subscribe((res: Res<Doc>) => {
 			console.log('submit.res', res);
 		}, (err: Res<Doc>) => {
 			console.log('submit.err', err);
@@ -97,7 +97,7 @@ export class AppComponent implements OnInit {
 					en_AE: 'staff en'
 				}
 			}
-		}).subscribe((res: Res<Doc>) => {
+		}, true).subscribe((res: Res<Doc>) => {
 			console.log('createblogcat.res', res);
 		}, (err: Res<Doc>) => {
 			console.log('createblogcat.err', err);

@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
 
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, combineLatest } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
-import { take, retry } from 'rxjs/operators';
 
 import * as rs from 'jsrsasign';
 
@@ -18,12 +17,19 @@ export class ApiService {
 	fileChunkSize: number = 500 * 1024;
 	authHashLevel: 5.0 | 5.6 = 5.6;
 
-	subject!: Subject<any>;
+	private subject!: Subject<any>;
+	private conn: Subject<Res<Doc>> = new Subject();
 
-	api!: string;
-	anonToken!: string;
+	private queue: {
+		noAuth: Array<{ subject: Array<Subject<any>>; callArgs: callArgs; }>;
+		auth: Array<{ subject: Array<Subject<any>>; callArgs: callArgs; }>;
+	} = {
+		noAuth: new Array(),
+		auth: new Array()
+	};
 
-	session!: Session;
+	private api: string;
+	private anonToken!: string;
 
 	inited: boolean;
 	inited$: Subject<boolean> = new Subject();
@@ -31,24 +37,81 @@ export class ApiService {
 	authed: boolean = false;
 	authed$: Subject<Session> = new Subject();
 
-	constructor(private cache: CacheService) { }
+	session!: Session;
 
-	debugLog(...payload: any): void {
+	constructor(private cache: CacheService) {
+		this.inited$.subscribe((init) => {
+			if (init) {
+				if (this.queue.noAuth) {
+					this.log('info', 'Found calls in noAuth queue:', this.queue.noAuth);
+				}
+				for (let call of this.queue.noAuth) {
+					this.log('info', 'processing noAuth call: ', call);
+					combineLatest(call.subject).subscribe({
+						complete: () => {
+							// Header
+							let oHeader = { alg: 'HS256', typ: 'JWT' };
+							// Payload
+							let tNow = Math.round((new Date() as any) / 1000);
+							let tEnd = Math.round((new Date() as any) / 1000) + 86400;
+							let sHeader = JSON.stringify(oHeader);
+							let sPayload = JSON.stringify({ ...call.callArgs, iat: tNow, exp: tEnd });
+							let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: this.anonToken });
+							this.log('info', 'sending noAuth queue request as JWT token:', call.callArgs, this.anonToken);
+							this.subject.next({ token: sJWT, call_id: call.callArgs.call_id });
+						}
+					});
+				}
+
+				this.queue.noAuth = [];
+			}
+		});
+
+		this.authed$.subscribe((session) => {
+			if (session) {
+				if (this.queue.noAuth) {
+					this.log('info', 'Found calls in auth queue:', this.queue.auth);
+				}
+				for (let call of this.queue.auth) {
+					this.log('info', 'processing auth call: ', call);
+					combineLatest(call.subject).subscribe({
+						complete: () => {
+							// Header
+							let oHeader = { alg: 'HS256', typ: 'JWT' };
+							// Payload
+							let tNow = Math.round((new Date() as any) / 1000);
+							let tEnd = Math.round((new Date() as any) / 1000) + 86400;
+							let sHeader = JSON.stringify(oHeader);
+							let sPayload = JSON.stringify({ ...call.callArgs, iat: tNow, exp: tEnd });
+							let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: this.session.token });
+							this.log('info', 'sending auth queue request as JWT token:', call.callArgs, this.anonToken);
+							this.subject.next({ token: sJWT, call_id: call.callArgs.call_id });
+						}
+					});
+				}
+
+				this.queue.auth = [];
+			}
+		});
+	}
+
+	log(level: 'log' | 'info' | 'warn' | 'error', ...data: any): void {
 		if (!this.debug) return;
-		console.log(...payload);
+		console[level](...data);
 	}
 
 	init(api: string, anonToken: string): Observable<Res<Doc>> {
-		this.debugLog('Resetting SDK before init');
+		this.log('log', 'Resetting SDK before init');
 		this.reset();
 		this.api = api;
 		this.subject = webSocket(this.api);
 
-		this.debugLog('Attempting to connect');
+		this.log('log', 'Attempting to connect');
 
 		this.subject
 		.subscribe((res: Res<Doc>) => {
-			this.debugLog('Received new message:', res);
+			this.log('log', 'Received new message:', res);
+			this.conn.next(res);
 			if (res.args && res.args.code == 'CORE_CONN_READY') {
 				this.reset();
 				this.anonToken = anonToken;
@@ -59,7 +122,7 @@ export class ApiService {
 			} else if (res.args && res.args.code == 'CORE_CONN_CLOSED') {
 				this.reset();
 			} else if (res.args && res.args.session) {
-				this.debugLog('Response has session obj');
+				this.log('log', 'Response has session obj');
 				if (res.args.session._id == 'f00000000000000000000012') {
 					if (this.authed) {
 						this.authed = false;
@@ -68,21 +131,22 @@ export class ApiService {
 					}
 					this.cache.remove('token');
 					this.cache.remove('sid');
-					this.debugLog('Session is null');
+					this.log('log', 'Session is null');
 				} else {
 					this.cache.put('sid', res.args.session._id);
 					this.cache.put('token', res.args.session.token);
 					this.authed = true;
 					this.session = res.args.session;
 					this.authed$.next(this.session);
-					this.debugLog('Session updated');
+					this.log('log', 'Session updated');
 				}
 			}
 		}, (err: Res<Doc>) => {
-			this.debugLog('Received error:', err);
+			this.log('log', 'Received error:', err);
+			this.conn.next(err);
 			this.reset();
 		}, () => {
-			this.debugLog('Connection clean-closed');
+			this.log('log', 'Connection clean-closed');
 			this.reset();
 		});
 
@@ -111,7 +175,8 @@ export class ApiService {
 		} catch { }
 	}
 
-	call(endpoint: string, callArgs: callArgs): Observable<Res<Doc>> {
+	call(endpoint: string, callArgs: callArgs, awaitAuth: boolean = false): Observable<Res<Doc>> {
+
 		callArgs.sid = (this.authed) ? callArgs.sid || this.cache.get('sid') || 'f00000000000000000000012' : callArgs.sid || 'f00000000000000000000012';
 		callArgs.token = (this.authed) ? callArgs.token || this.cache.get('token') || this.anonToken : callArgs.token || this.anonToken;
 		callArgs.query = callArgs.query || [];
@@ -120,60 +185,119 @@ export class ApiService {
 		callArgs.endpoint = endpoint;
 		callArgs.call_id = Math.random().toString(36).substring(7);
 
-		this.debugLog('callArgs', callArgs);
+		this.log('log', 'callArgs', callArgs);
 
-		let filesProcess = [];
+		let files: {
+			[key: string]: FileList;
+		} = {};
+		let filesSubjects: Array<Subject<any>> = [];
 
 		for (let attr of Object.keys(callArgs.doc)) {
 			if (callArgs.doc[attr] instanceof FileList) {
-				let files = callArgs.doc[attr];
+				this.log('log', 'Detected FileList for doc attr: ', attr);
+				files[attr] = callArgs.doc[attr];
 				callArgs.doc[attr] = [];
-				for (let file of files) {
+				for (let file of (files[attr] as any)) {
 					callArgs.doc[attr].push(file);
 				}
-				for (let i of Object.keys(callArgs.doc[attr])) {
-					filesProcess.push(`${attr}.${i}`);
-					let reader = new FileReader();
-					reader.onloadend = (file) => {
-						let byteArray = new Uint8Array((reader.result as any));
-						let byteArrayIndex: number = 0;
-						let chunkIndex: number = 1;
-						while (byteArrayIndex < byteArray.length) {
-							this.debugLog('attempting to send chunk of 500kb from:', byteArrayIndex, chunkIndex);
-							this.call('file/upload', {
-								doc: {
+			}
+		}
+
+		for (let attr of Object.keys(files)) {
+			this.log('log', 'Attempting to read files from:', files[attr]);
+			let fileSubject = new Subject();
+			filesSubjects.push(fileSubject);
+			let fileUploads = [];
+			for (let i of Object.keys(files[attr])) {
+				this.log('log', 'Attempting to read file: ', i, files[attr][i])
+				let reader = new FileReader();
+				let readerObservable = new Observable<any>(
+					(observer) => {
+						reader.onloadend = (file) => {
+							let byteArray = new Uint8Array((reader.result as any));
+							let byteArrayIndex: number = 0;
+							let chunkIndex: number = 1;
+							while (byteArrayIndex < byteArray.length) {
+								this.log('log', 'Attempting to send chunk of 500kb from:', byteArrayIndex, chunkIndex);
+								let fileUpload = this.call('file/upload', { doc: {
 									attr: attr,
 									index: i,
 									chunk: chunkIndex,
 									total: Math.ceil(byteArray.length / this.fileChunkSize),
 									file: {
-										name: callArgs.doc[attr][i].name,
-										size: callArgs.doc[attr][i].size,
-										type: callArgs.doc[attr][i].type,
-										lastModified: callArgs.doc[attr][i].lastModified,
+										name: files[attr][i].name,
+										size: files[attr][i].size,
+										type: files[attr][i].type,
+										lastModified: files[attr][i].lastModified,
 										content: byteArray.slice(byteArrayIndex, byteArrayIndex + this.fileChunkSize).join(',')
 									}
-								}
-							}).pipe(take(1)).subscribe((res) => {
-								filesProcess.splice(filesProcess.indexOf(`${attr}.${i}`), 1);
-							});
-							byteArrayIndex += this.fileChunkSize;
-							chunkIndex += 1;
-						}
-					};
-					reader.readAsArrayBuffer(callArgs.doc[attr][i]);
-				}
+								}}, awaitAuth);
+								fileUploads.push(fileUpload);
+								
+								byteArrayIndex += this.fileChunkSize;
+								chunkIndex += 1;
+							}
+							observer.complete();
+							observer.unsubscribe();
+							readerObservable.unsubscribe();
+						};
+					}
+				).subscribe({
+					complete: () => {
+						this.log('log', 'Done parsing file: ', i, files[attr][i]);
+						combineLatest(fileUploads).subscribe({
+							complete: () => {
+								this.log('log', 'Finsied uploading file: ', i, files[attr][i]);
+								fileSubject.complete();
+							}
+						});
+					}
+				});
+				reader.readAsArrayBuffer(files[attr][i]);
 			}
 		}
-		this.pushCall(callArgs, filesProcess);
+
+		this.log('log', 'Populated filesSubjects:', filesSubjects);
+
+		if (this.inited || callArgs.endpoint == 'conn/verify') {
+			combineLatest(filesSubjects).subscribe({
+				complete: () => {
+					// Header
+					let oHeader = { alg: 'HS256', typ: 'JWT' };
+					// Payload
+					let tNow = Math.round((new Date() as any) / 1000);
+					let tEnd = Math.round((new Date() as any) / 1000) + 86400;
+					let sHeader = JSON.stringify(oHeader);
+					let sPayload = JSON.stringify({ ...callArgs, iat: tNow, exp: tEnd });
+					let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: callArgs.token });
+					this.log('log', 'sending request as JWT token:', callArgs, callArgs.token);
+					this.subject.next({ token: sJWT, call_id: callArgs.call_id });
+				}
+			});
+		} else {
+			this.log('warn', 'SDK not yet inited. Queuing call: ', callArgs);
+			if (awaitAuth) {
+				this.log('warn', 'Queuing in auth queue.');
+				this.queue.auth.push({
+					subject: filesSubjects,
+					callArgs: callArgs
+				});
+			} else {
+				this.log('warn', 'Queuing in noAuth queue.');
+				this.queue.noAuth.push({
+					subject: filesSubjects,
+					callArgs: callArgs
+				});
+			}
+		}
 
 		let call = new Observable<Res<Doc>>(
 			(observer) => {
-				let observable = this.subject
+				let observable = this.conn
 					.subscribe(
 						(res: Res<Doc>) => {
 							if (res.args && res.args.call_id == callArgs.call_id) {
-								this.debugLog('message received from observer on call_id:', res, callArgs.call_id);
+								this.log('log', 'message received from observer on call_id:', res, callArgs.call_id);
 								if (res.status == 200) {
 									observer.next(res);
 								} else {
@@ -181,12 +305,12 @@ export class ApiService {
 								}
 
 								if (!res.args.watch) {
-									this.debugLog('completing the observer with call_id:', res.args.call_id);
+									this.log('log', 'completing the observer with call_id:', res.args.call_id);
 									observer.complete();
 									observer.unsubscribe();
 									observable.unsubscribe();
 								} else {
-									this.debugLog('Deteched watch with call_id:', res.args.call_id);
+									this.log('log', 'Detected watch with call_id:', res.args.call_id);
 								}
 							}
 						}, (err: Res<Doc>) => {
@@ -202,24 +326,12 @@ export class ApiService {
 		return call;
 	}
 
-	pushCall(callArgs: any, filesProcess: Array<string>): void {
-		setTimeout(() => {
-			this.debugLog('checking filesProcess...');
-			if (filesProcess.length) {
-				this.pushCall(callArgs, filesProcess);
-			} else {
-				// Header
-				let oHeader = { alg: 'HS256', typ: 'JWT' };
-				// Payload
-				let tNow = Math.round((new Date() as any) / 1000);
-				let tEnd = Math.round((new Date() as any) / 1000) + 86400;
-				let sHeader = JSON.stringify(oHeader);
-				let sPayload = JSON.stringify({ ...callArgs, iat: tNow, exp: tEnd });
-				let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: callArgs.token });
-				this.debugLog('sending request as JWT token:', callArgs, callArgs.token);
-				this.subject.next({ token: sJWT, call_id: callArgs.call_id });
-			}
-		}, 100);
+	deleteWatch(watch: string | '__all'): Observable<Res<Doc>> {
+		let call = this.call('watch/delete', { query: [{ watch: watch }] });
+		call.subscribe({
+			error: (err) => { this.log('error', 'deleteWatch call err:', err); }
+		});
+		return call;
 	}
 
 	generateAuthHash(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): string {
@@ -238,7 +350,9 @@ export class ApiService {
 		let doc: any = { hash: this.generateAuthHash(authVar, authVal, password) };
 		doc[authVar] = authVal;
 		let call = this.call('session/auth', {doc: doc});
-		call.subscribe();
+		call.subscribe({
+			error: (err) => { this.log('error', 'auth call err:', err); }
+		});
 		return call;
 	}
 
@@ -254,13 +368,16 @@ export class ApiService {
 				{ _id: sid || 'f00000000000000000000012', hash: sJWT.split('.')[1] }
 			]
 		});
-		call.subscribe((res: Res<Session>) => {}, (err: Res<Session>) => {
-			this.cache.remove('token');
-			this.cache.remove('sid');
-			if (this.authed) {
-				this.authed = false;
-				this.session = null;
-				this.authed$.next(null);
+		call.subscribe({
+			error: (err: Res<Session>) => {
+				this.log('error', 'reauth call err:', err);
+				this.cache.remove('token');
+				this.cache.remove('sid');
+				if (this.authed) {
+					this.authed = false;
+					this.session = null;
+					this.authed$.next(null);
+				}
 			}
 		});
 		return call;
@@ -272,12 +389,14 @@ export class ApiService {
 				{ _id: this.cache.get('sid') }
 			]
 		});
-		call.subscribe();
+		call.subscribe({
+			error: (err) => { this.log('error', 'signout call err:', err); }
+		});
 		return call;
 	}
 
 	checkAuth(): Observable<Res<Doc>> {
-		this.debugLog('attempting checkAuth');
+		this.log('log', 'attempting checkAuth');
 		if (!this.cache.get('token') || !this.cache.get('sid')) throw new Error('No credentials cached.');
 		let call = this.reauth(this.cache.get('sid'), this.cache.get('token'));
 		return call;
