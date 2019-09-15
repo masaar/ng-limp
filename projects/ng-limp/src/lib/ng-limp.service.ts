@@ -143,8 +143,8 @@ export class ApiService {
 			}
 		}, (err: Res<Doc>) => {
 			this.log('log', 'Received error:', err);
-			this.conn.next(err);
-			this.reset();
+			this.conn.error(err);
+			this.reset(true);
 		}, () => {
 			this.log('log', 'Connection clean-closed');
 			this.reset();
@@ -159,7 +159,7 @@ export class ApiService {
 		return call;
 	}
 
-	reset(): void {
+	reset(forceInited: boolean = false): void {
 		try {
 			this.authed = false;
 			if (this.session) {
@@ -168,7 +168,7 @@ export class ApiService {
 				this.authed$.next(null);
 			}
 	
-			if (this.inited) {
+			if (forceInited || this.inited) {
 				this.inited = false;
 				this.inited$.next(false);
 			}
