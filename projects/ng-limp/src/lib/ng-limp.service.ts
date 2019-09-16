@@ -46,7 +46,7 @@ export class ApiService {
 					this.log('info', 'Found calls in noAuth queue:', this.queue.noAuth);
 				}
 				for (let call of this.queue.noAuth) {
-					this.log('info', 'processing noAuth call: ', call);
+					this.log('info', 'processing noAuth call:', call);
 					combineLatest(call.subject).subscribe({
 						complete: () => {
 							// Header
@@ -73,7 +73,7 @@ export class ApiService {
 					this.log('info', 'Found calls in auth queue:', this.queue.auth);
 				}
 				for (let call of this.queue.auth) {
-					this.log('info', 'processing auth call: ', call);
+					this.log('info', 'processing auth call:', call);
 					combineLatest(call.subject).subscribe({
 						complete: () => {
 							// Header
@@ -194,7 +194,7 @@ export class ApiService {
 
 		for (let attr of Object.keys(callArgs.doc)) {
 			if (callArgs.doc[attr] instanceof FileList) {
-				this.log('log', 'Detected FileList for doc attr: ', attr);
+				this.log('log', 'Detected FileList for doc attr:', attr);
 				files[attr] = callArgs.doc[attr];
 				callArgs.doc[attr] = [];
 				for (let file of (files[attr] as any)) {
@@ -209,7 +209,7 @@ export class ApiService {
 			filesSubjects.push(fileSubject);
 			let fileUploads = [];
 			for (let i of Object.keys(files[attr])) {
-				this.log('log', 'Attempting to read file: ', i, files[attr][i])
+				this.log('log', 'Attempting to read file:', i, files[attr][i])
 				let reader = new FileReader();
 				let readerObservable = new Observable<any>(
 					(observer) => {
@@ -244,10 +244,13 @@ export class ApiService {
 					}
 				).subscribe({
 					complete: () => {
-						this.log('log', 'Done parsing file: ', i, files[attr][i]);
+						this.log('log', 'Done parsing file:', i, files[attr][i]);
 						combineLatest(fileUploads).subscribe({
+							error: (err) => {
+								this.log('error', 'Received error on file for fileUploads:', i, err);
+							},
 							complete: () => {
-								this.log('log', 'Finsied uploading file: ', i, files[attr][i]);
+								this.log('log', 'Finsied uploading file:', i, files[attr][i]);
 								fileSubject.complete();
 							}
 						});
@@ -259,8 +262,11 @@ export class ApiService {
 
 		this.log('log', 'Populated filesSubjects:', filesSubjects);
 
-		if (this.inited || callArgs.endpoint == 'conn/verify') {
+		if ((this.inited && awaitAuth && this.authed) || (this.inited && !awaitAuth) || callArgs.endpoint == 'conn/verify') {
 			combineLatest(filesSubjects).subscribe({
+				error: (err) => {
+					this.log('error', 'Received error on filesSubjects:', err);
+				},
 				complete: () => {
 					// Header
 					let oHeader = { alg: 'HS256', typ: 'JWT' };
@@ -275,7 +281,7 @@ export class ApiService {
 				}
 			});
 		} else {
-			this.log('warn', 'SDK not yet inited. Queuing call: ', callArgs);
+			this.log('warn', 'SDK not yet inited. Queuing call:', callArgs);
 			if (awaitAuth) {
 				this.log('warn', 'Queuing in auth queue.');
 				this.queue.auth.push({
