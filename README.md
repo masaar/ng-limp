@@ -14,7 +14,7 @@ npm i --save ng-limp
 
 ## How to Use
 1. Import `NgLimpModule` in your module imports.
-2. Initiate the API, in your component, using :
+2. Initiate the API, in your component, using:
 ```typescript
 import { Component, OnInit } from '@angular/core';
 
@@ -30,7 +30,7 @@ export class AppComponent implements OnInit {
 	constructor(private api: ApiService) {}
 
 	ngOnInit() {
-		this.api.init('ws://localhost:8081/ws', 'http://localhost:8081', '__ANON');
+		this.api.init('ws://localhost:8081/ws', '__ANON');
 	}
 }
 ```
@@ -133,7 +133,7 @@ A `Subject<Boolean | Doc>` you can subscribe to handle changes to state of user 
 ## `init()`
 The base method to initiate a connection with LIMP app. This method returns an `Observable` for chain subscription if for any reason you need to read every message being received from the API, however subscribing to it is not required. Method definition:
 ```typescript
-init(api: String, anon_token: String): Observable<Res<Doc>> { /*...*/ }
+init(api: String, anonToken: String): Observable<Res<Doc>> { /*...*/ }
 ```
 
 ## `close()`
@@ -172,7 +172,7 @@ The method to use to generate authentication hashes. This is used internally for
 generateAuthHash(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): string { /*...*/ }
 ```
 
-## `deleteWatch`
+## `deleteWatch()`
 The method to delete a watch in progress. You can pass the watch ID you want to delete or `__all` to delete all watches. This method returns an `Observable` for chain subscription if for any reason you need the response of the `deleteWatch` call, however subscribing to it is not required. Method definition:
 ```typescript
 deleteWatch(watch: string | '__all'): Observable<Res<Doc>> { /*...*/ }
