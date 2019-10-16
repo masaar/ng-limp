@@ -95,7 +95,7 @@ export class ApiService {
 		});
 	}
 
-	log(level: 'log' | 'info' | 'warn' | 'error', ...data: any): void {
+	log(level: 'log' | 'info' | 'warn' | 'error', ...data: Array<any>): void {
 		if (!this.debug) return;
 		console[level](...data);
 	}
