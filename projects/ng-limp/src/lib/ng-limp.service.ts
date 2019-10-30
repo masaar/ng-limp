@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-import { Observable, Subject, combineLatest } from 'rxjs';
+import { Observable, Subject, combineLatest, interval, Subscription } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 
 import * as rs from 'jsrsasign';
@@ -19,6 +19,9 @@ export class ApiService {
 
 	private subject!: Subject<any>;
 	private conn: Subject<Res<Doc>> = new Subject();
+	
+	private heartbeat: Observable<number> = interval(30000);
+	private heartbeat$: Subscription;
 
 	private queue: {
 		noAuth: Array<{ subject: Array<Subject<any>>; callArgs: callArgs; }>;
@@ -42,6 +45,11 @@ export class ApiService {
 	constructor(private cache: CacheService) {
 		this.inited$.subscribe((init) => {
 			if (init) {
+				this.heartbeat$ = this.heartbeat.subscribe((i) => {
+					this.call('heart/beat', {}).subscribe({
+						error: (err) => { }
+					});
+				});
 				if (this.queue.noAuth) {
 					this.log('info', 'Found calls in noAuth queue:', this.queue.noAuth);
 				}
@@ -64,6 +72,8 @@ export class ApiService {
 				}
 
 				this.queue.noAuth = [];
+			} else {
+				this.heartbeat$.unsubscribe();
 			}
 		});
 
