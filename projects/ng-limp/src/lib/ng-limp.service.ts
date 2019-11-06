@@ -16,6 +16,7 @@ export class ApiService {
 	debug: boolean = false;
 	fileChunkSize: number = 500 * 1024;
 	authHashLevel: 5.0 | 5.6 = 5.6;
+	authAttrs: Array<string> = [];
 
 	private subject!: Subject<any>;
 	private conn: Subject<Res<Doc>> = new Subject();
@@ -111,6 +112,9 @@ export class ApiService {
 	}
 
 	init(api: string, anonToken: string): Observable<Res<Doc>> {
+		if (this.authAttrs.length == 0) {
+			throw new Error('SDK authAttrs not set')
+		}
 		this.log('log', 'Resetting SDK before init');
 		this.reset();
 		this.api = api;
@@ -350,7 +354,10 @@ export class ApiService {
 		return call;
 	}
 
-	generateAuthHash(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): string {
+	generateAuthHash(authVar: string, authVal: string, password: string): string {
+		if (this.authAttrs.indexOf(authVar) == -1) {
+			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.authAttrs.join(', ')}'`)
+		}
 		let oHeader = { alg: 'HS256', typ: 'JWT' };
 		let sHeader = JSON.stringify(oHeader);
 		let hashObj = [authVar, authVal, password];
@@ -362,7 +369,10 @@ export class ApiService {
 		return sJWT.split('.')[1];
 	}
 
-	auth(authVar: 'username' | 'email' | 'phone', authVal: string, password: string): Observable<Res<Doc>> {
+	auth(authVar: string, authVal: string, password: string): Observable<Res<Doc>> {
+		if (this.authAttrs.indexOf(authVar) == -1) {
+			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.authAttrs.join(', ')}'`)
+		}
 		let doc: any = { hash: this.generateAuthHash(authVar, authVal, password) };
 		doc[authVar] = authVal;
 		let call = this.call('session/auth', {doc: doc});

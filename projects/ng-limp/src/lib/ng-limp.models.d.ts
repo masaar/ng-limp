@@ -81,24 +81,14 @@ export interface Session extends Doc {
 }
 
 export interface User extends Doc {
-	username: string;
-	email: string;
-	phone: string;
 	name: { [key: string]: string };
-	bio: { [key: string]: string };
-	address: { [key: string]: string };
-	postal_code: string;
-	website: string;
 	locale: string;
 	create_time: string;
 	login_time: string;
 	groups: Array<string>,
 	privileges: { [key: string]: Array<string>; },
-	username_hash?: string;
-	email_hash?: string;
-	phone_hash?: string;
 	status: 'active' | 'banned' | 'deleted' | 'disabled_password',
 	attrs: {
 		[key: string]: any;
-	}
+	};
 }

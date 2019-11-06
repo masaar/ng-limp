@@ -20,6 +20,7 @@ export class AppComponent implements OnInit {
 
 	ngOnInit() {
 		this.api.debug = true;
+		this.api.authAttrs = ['email'];
 		this.api.inited$.subscribe((init) => {
 			if (init) {
 				try {
