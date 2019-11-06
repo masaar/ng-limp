@@ -19,8 +19,8 @@ export class AppComponent implements OnInit {
 	constructor(public api: ApiService) { }
 
 	ngOnInit() {
-		this.api.debug = true;
-		this.api.authAttrs = ['email'];
+		// this.api.debug = true;
+		// this.api.authAttrs = ['email'];
 		this.api.inited$.subscribe((init) => {
 			if (init) {
 				try {
@@ -49,7 +49,12 @@ export class AppComponent implements OnInit {
 	}
 
 	init(): void {
-		this.api.init('ws://localhost:8081/ws', '__ANON_TOKEN_f00000000000000000000012');
+		this.api.init({
+			api: 'ws://localhost:8081/ws',
+			anonToken: '__ANON_TOKEN_f00000000000000000000012',
+			authAttrs: ['email'],
+			debug: true
+		});
 	}
 
 	auth(): void {

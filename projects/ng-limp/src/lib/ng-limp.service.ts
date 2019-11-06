@@ -5,7 +5,7 @@ import { webSocket } from 'rxjs/webSocket';
 
 import * as rs from 'jsrsasign';
 
-import { callArgs, Res, Doc, Session } from './ng-limp.models';
+import { SDKConfig, callArgs, Res, Doc, Session } from './ng-limp.models';
 import { CacheService } from './cache.service';
 
 const JWS = rs.jws.JWS;
@@ -13,10 +13,15 @@ const JWS = rs.jws.JWS;
 @Injectable()
 export class ApiService {
 
-	debug: boolean = false;
-	fileChunkSize: number = 500 * 1024;
-	authHashLevel: 5.0 | 5.6 = 5.6;
-	authAttrs: Array<string> = [];
+	private config: SDKConfig = {
+		api: null,
+		anonToken: null,
+		authAttrs: [],
+		debug: false,
+		fileChunkSize: 500 * 1024,
+		authHashLevel: 5.6
+	}
+	
 
 	private subject!: Subject<any>;
 	private conn: Subject<Res<Doc>> = new Subject();
@@ -31,9 +36,6 @@ export class ApiService {
 		noAuth: new Array(),
 		auth: new Array()
 	};
-
-	private api: string;
-	private anonToken!: string;
 
 	inited: boolean;
 	inited$: Subject<boolean> = new Subject();
@@ -65,8 +67,8 @@ export class ApiService {
 							let tEnd = Math.round((new Date() as any) / 1000) + 86400;
 							let sHeader = JSON.stringify(oHeader);
 							let sPayload = JSON.stringify({ ...call.callArgs, iat: tNow, exp: tEnd });
-							let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: this.anonToken });
-							this.log('info', 'sending noAuth queue request as JWT token:', call.callArgs, this.anonToken);
+							let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: this.config.anonToken });
+							this.log('info', 'sending noAuth queue request as JWT token:', call.callArgs, this.config.anonToken);
 							this.subject.next({ token: sJWT, call_id: call.callArgs.call_id });
 						}
 					});
@@ -95,7 +97,7 @@ export class ApiService {
 							let sHeader = JSON.stringify(oHeader);
 							let sPayload = JSON.stringify({ ...call.callArgs, iat: tNow, exp: tEnd });
 							let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: this.session.token });
-							this.log('info', 'sending auth queue request as JWT token:', call.callArgs, this.anonToken);
+							this.log('info', 'sending auth queue request as JWT token:', call.callArgs, this.config.anonToken);
 							this.subject.next({ token: sJWT, call_id: call.callArgs.call_id });
 						}
 					});
@@ -107,18 +109,18 @@ export class ApiService {
 	}
 
 	log(level: 'log' | 'info' | 'warn' | 'error', ...data: Array<any>): void {
-		if (!this.debug) return;
+		if (!this.config.debug) return;
 		console[level](...data);
 	}
 
-	init(api: string, anonToken: string): Observable<Res<Doc>> {
-		if (this.authAttrs.length == 0) {
+	init(config: SDKConfig): Observable<Res<Doc>> {
+		Object.assign(this.config, config);
+		if (this.config.authAttrs.length == 0) {
 			throw new Error('SDK authAttrs not set')
 		}
 		this.log('log', 'Resetting SDK before init');
 		this.reset();
-		this.api = api;
-		this.subject = webSocket(this.api);
+		this.subject = webSocket(this.config.api);
 
 		this.log('log', 'Attempting to connect');
 
@@ -128,7 +130,7 @@ export class ApiService {
 			this.conn.next(res);
 			if (res.args && res.args.code == 'CORE_CONN_READY') {
 				this.reset();
-				this.anonToken = anonToken;
+				this.config.anonToken = config.anonToken;
 				this.call('conn/verify', {}).subscribe();
 			} else if (res.args && res.args.code == 'CORE_CONN_OK') {
 				this.inited = true;
@@ -192,7 +194,7 @@ export class ApiService {
 	call(endpoint: string, callArgs: callArgs, awaitAuth: boolean = false): Observable<Res<Doc>> {
 
 		callArgs.sid = (this.authed) ? callArgs.sid || this.cache.get('sid') || 'f00000000000000000000012' : callArgs.sid || 'f00000000000000000000012';
-		callArgs.token = (this.authed) ? callArgs.token || this.cache.get('token') || this.anonToken : callArgs.token || this.anonToken;
+		callArgs.token = (this.authed) ? callArgs.token || this.cache.get('token') || this.config.anonToken : callArgs.token || this.config.anonToken;
 		callArgs.query = callArgs.query || [];
 		callArgs.doc = callArgs.doc || {};
 
@@ -237,18 +239,18 @@ export class ApiService {
 									attr: attr,
 									index: i,
 									chunk: chunkIndex,
-									total: Math.ceil(byteArray.length / this.fileChunkSize),
+									total: Math.ceil(byteArray.length / this.config.fileChunkSize),
 									file: {
 										name: files[attr][i].name,
 										size: files[attr][i].size,
 										type: files[attr][i].type,
 										lastModified: files[attr][i].lastModified,
-										content: byteArray.slice(byteArrayIndex, byteArrayIndex + this.fileChunkSize).join(',')
+										content: byteArray.slice(byteArrayIndex, byteArrayIndex + this.config.fileChunkSize).join(',')
 									}
 								}}, awaitAuth);
 								fileUploads.push(fileUpload);
 								
-								byteArrayIndex += this.fileChunkSize;
+								byteArrayIndex += this.config.fileChunkSize;
 								chunkIndex += 1;
 							}
 							observer.complete();
@@ -355,14 +357,14 @@ export class ApiService {
 	}
 
 	generateAuthHash(authVar: string, authVal: string, password: string): string {
-		if (this.authAttrs.indexOf(authVar) == -1) {
-			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.authAttrs.join(', ')}'`)
+		if (this.config.authAttrs.indexOf(authVar) == -1) {
+			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.config.authAttrs.join(', ')}'`)
 		}
 		let oHeader = { alg: 'HS256', typ: 'JWT' };
 		let sHeader = JSON.stringify(oHeader);
 		let hashObj = [authVar, authVal, password];
-		if (this.authHashLevel == 5.6) {
-			hashObj.push(this.anonToken);
+		if (this.config.authHashLevel == 5.6) {
+			hashObj.push(this.config.anonToken);
 		}
 		let sPayload = JSON.stringify({ hash: hashObj });
 		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: password });
@@ -370,8 +372,8 @@ export class ApiService {
 	}
 
 	auth(authVar: string, authVal: string, password: string): Observable<Res<Doc>> {
-		if (this.authAttrs.indexOf(authVar) == -1) {
-			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.authAttrs.join(', ')}'`)
+		if (this.config.authAttrs.indexOf(authVar) == -1) {
+			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.config.authAttrs.join(', ')}'`)
 		}
 		let doc: any = { hash: this.generateAuthHash(authVar, authVal, password) };
 		doc[authVar] = authVal;
@@ -389,7 +391,7 @@ export class ApiService {
 		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: token });
 		let call: Observable<Res<Doc>> = this.call('session/reauth', {
 			sid: 'f00000000000000000000012',
-			token: this.anonToken,
+			token: this.config.anonToken,
 			query: [
 				{ _id: sid || 'f00000000000000000000012', hash: sJWT.split('.')[1] }
 			]

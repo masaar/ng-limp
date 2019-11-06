@@ -1,3 +1,12 @@
+export interface SDKConfig {
+	api: string;
+	anonToken: string;
+	authAttrs: Array<string>;
+	debug?: boolean;
+	fileChunkSize?: number;
+	authHashLevel?: 5.0 | 5.6;
+}
+
 export interface QueryStep {
 	$search?: string;
 	$sort?: {
