@@ -45,7 +45,7 @@ export interface QueryStep {
 	} | Query | string | { [attr: string]: 1 | -1; } | number | false | Array<string>;
 }
 
-export interface Query extends Array<QueryStep> {}
+export interface Query extends Array<QueryStep | Query> {}
 
 export interface callArgs {
 	call_id?: string;
