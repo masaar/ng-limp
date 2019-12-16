@@ -25,6 +25,8 @@ export interface QueryStep {
 	} | {
 		$eq: any;
 	} | {
+		$regex: string;
+	} | {
 		$gt: number | string;
 	} | {
 		$gte: number | string;
