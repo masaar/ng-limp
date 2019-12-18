@@ -20,6 +20,11 @@ export interface QueryStep {
 		by: string;
 		count: number;
 	}>;
+	$geo_near?: {
+		val: [number, number];
+		attr: string;
+		dist: number
+	};
 	[attr: string]: {
 		$not: any;
 	} | {
@@ -44,7 +49,11 @@ export interface QueryStep {
 		$attrs: Array<string>;
 	} | {
 		$skip: false | Array<string>;
-	} | Query | string | { [attr: string]: 1 | -1; } | number | false | Array<string>;
+	} | Query | string | { [attr: string]: 1 | -1; } | number | false | Array<string> | {
+		val: [number, number];
+		attr: string;
+		dist: number;
+	};
 }
 
 export interface Query extends Array<QueryStep | Query> {}
