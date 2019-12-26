@@ -26,7 +26,7 @@ export interface QueryStep {
 		dist: number
 	};
 	[attr: string]: {
-		$not: any;
+		$ne: any;
 	} | {
 		$eq: any;
 	} | {
