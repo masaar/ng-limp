@@ -2,9 +2,10 @@ export interface SDKConfig {
 	api: string;
 	anonToken: string;
 	authAttrs: Array<string>;
+	appId: string;
 	debug?: boolean;
 	fileChunkSize?: number;
-	authHashLevel?: 5.0 | 5.6;
+	authHashLevel?: '5.0' | '5.6';
 }
 
 export interface QueryStep {
@@ -67,6 +68,7 @@ export interface callArgs {
 	doc?: {
 		[attr: string]: any;
 	};
+	awaitAuth?: boolean;
 }
 
 export interface Res<T> {

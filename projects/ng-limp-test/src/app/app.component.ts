@@ -19,12 +19,10 @@ export class AppComponent implements OnInit {
 	constructor(public api: ApiService) { }
 
 	ngOnInit() {
-		// this.api.debug = true;
-		// this.api.authAttrs = ['email'];
 		this.api.inited$.subscribe((init) => {
 			if (init) {
 				try {
-					this.api.checkAuth();
+					this.api.checkAuth(['5e09897026e6243a8cb13025']);
 				} catch (err) {
 					console.log(err);
 				}
@@ -53,12 +51,13 @@ export class AppComponent implements OnInit {
 			api: 'ws://localhost:8081/ws',
 			anonToken: '__ANON_TOKEN_f00000000000000000000012',
 			authAttrs: ['email'],
+			appId: '5e082e470a38bd02f993081a',
 			debug: true
 		});
 	}
 
 	auth(): void {
-		this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMIN');
+		this.api.auth('email', 'some-760@email.com', '__ADMIN', ['f00000000000000000000013']);
 		//.subscribe((res) => { alert('Authed succefully!') });
 	}
 
@@ -68,7 +67,8 @@ export class AppComponent implements OnInit {
 	}
 
 	submit(): void {
-		this.api.call('staff/create', {
+		this.api.call({
+			endpoint: 'staff/create',
 			doc: {
 				name: {
 					ar_AE: 'staff ar',
@@ -83,8 +83,9 @@ export class AppComponent implements OnInit {
 					en_AE: 'jobtitle en'
 				},
 				photo: document.querySelector('input').files,
-			}
-		}, true).subscribe((res: Res<Doc>) => {
+			},
+			awaitAuth: true
+		}).subscribe((res: Res<Doc>) => {
 			console.log('submit.res', res);
 		}, (err: Res<Doc>) => {
 			console.log('submit.err', err);
@@ -92,7 +93,8 @@ export class AppComponent implements OnInit {
 	}
 
 	createblogcat(): void {
-		this.api.call('blog_cat/create', {
+		this.api.call({
+			endpoint: 'blog_cat/create',
 			doc: {
 				title: {
 					ar_AE: 'staff ar',
@@ -102,8 +104,9 @@ export class AppComponent implements OnInit {
 					ar_AE: 'staff ar',
 					en_AE: 'staff en'
 				}
-			}
-		}, true).subscribe((res: Res<Doc>) => {
+			},
+			awaitAuth: true
+		}).subscribe((res: Res<Doc>) => {
 			console.log('createblogcat.res', res);
 		}, (err: Res<Doc>) => {
 			console.log('createblogcat.err', err);
