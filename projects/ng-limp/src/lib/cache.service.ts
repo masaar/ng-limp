@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-import { CookieService } from 'ngx-cookie';
+import { CookieService } from 'ngx-cookie-service';
 
 @Injectable()
 export class CacheService {
@@ -12,10 +12,10 @@ export class CacheService {
 	}
 
 	put(key: string, val: string): void {
-		this.cookie.put(key, val);
+		this.cookie.set(key, val);
 	}
 
 	remove(key: string): void {
-		this.cookie.remove(key);
+		this.cookie.delete(key);
 	}
 }

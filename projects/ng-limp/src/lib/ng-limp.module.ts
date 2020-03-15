@@ -1,15 +1,16 @@
 import { NgModule, ModuleWithProviders } from '@angular/core';
 
-import { CookieModule } from 'ngx-cookie';
+import { CookieService } from 'ngx-cookie-service';
 
 import { CacheService } from './cache.service'
 import { ApiService } from './ng-limp.service';
 
 @NgModule({
 	declarations: [],
-	imports: [ CookieModule.forRoot() ],
+	imports: [],
 	exports: [],
 	providers: [
+		CookieService,
 		CacheService,
 		ApiService
 	]
