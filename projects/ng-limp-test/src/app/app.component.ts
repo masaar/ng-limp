@@ -22,7 +22,7 @@ export class AppComponent implements OnInit {
 		this.api.inited$.subscribe((init) => {
 			if (init) {
 				try {
-					this.api.checkAuth(['5e09897026e6243a8cb13025']);
+					this.api.checkAuth();
 				} catch (err) {
 					console.log(err);
 				}
@@ -57,7 +57,7 @@ export class AppComponent implements OnInit {
 	}
 
 	auth(): void {
-		this.api.auth('email', 'some-760@email.com', '__ADMIN', ['f00000000000000000000013']);
+		this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMINx0', ['f00000000000000000000013']);
 		//.subscribe((res) => { alert('Authed succefully!') });
 	}
 

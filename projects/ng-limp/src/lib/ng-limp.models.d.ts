@@ -5,7 +5,7 @@ export interface SDKConfig {
 	appId: string;
 	debug?: boolean;
 	fileChunkSize?: number;
-	authHashLevel?: '5.0' | '5.6';
+	authHashLevel?: '5.0' | '5.6' | '6.1';
 }
 
 export interface QueryStep {

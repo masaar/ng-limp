@@ -20,7 +20,7 @@ export class ApiService {
 		appId: null,
 		debug: false,
 		fileChunkSize: 500 * 1024,
-		authHashLevel: '5.6'
+		authHashLevel: '6.1'
 	}
 
 
@@ -371,21 +371,29 @@ export class ApiService {
 	}
 
 	generateAuthHash(authVar: string, authVal: string, password: string): string {
-		if (this.config.authAttrs.indexOf(authVar) == -1) {
-			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.config.authAttrs.join(', ')}'`)
+		if (this.config.authAttrs.indexOf(authVar) == -1 && authVar != 'token') {
+			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.config.authAttrs.join(', ')}, token'`)
 		}
-		let oHeader = { alg: 'HS256', typ: 'JWT' };
-		let sHeader = JSON.stringify(oHeader);
-		let hashObj = [authVar, authVal, password];
-		if (this.config.authHashLevel == '5.6') {
-			hashObj.push(this.config.anonToken);
+		if (this.config.authHashLevel != '6.1') {
+			let oHeader = { alg: 'HS256', typ: 'JWT' };
+			let sHeader = JSON.stringify(oHeader);
+			let hashObj = [authVar, authVal, password];
+			if (this.config.authHashLevel == '5.6') {
+				hashObj.push(this.config.anonToken);
+			}
+			let sPayload = JSON.stringify({ hash: hashObj });
+			let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: password });
+			return sJWT.split('.')[1];
+		} else {
+			if (!password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})/)) {
+				throw new Error('Password should be 8 chars, contains one lower-case char, one upper-case char, one number at least.');
+			}
+			return `${authVar}${authVal}${password}${this.config.anonToken}`;
 		}
-		let sPayload = JSON.stringify({ hash: hashObj });
-		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: password });
-		return sJWT.split('.')[1];
 	}
 
 	auth(authVar: string, authVal: string, password: string, groups?: Array<string>): Observable<Res<Doc>> {
+		if (this.authed) throw new Error('User already authed.');
 		if (this.config.authAttrs.indexOf(authVar) == -1) {
 			throw new Error(`Unkown authVar '${authVar}'. Accepted authAttrs: '${this.config.authAttrs.join(', ')}'`)
 		}
@@ -405,12 +413,8 @@ export class ApiService {
 	}
 
 	reauth(sid: string = this.cache.get('sid'), token: string = this.cache.get('token'), groups?: Array<string>): Observable<Res<Doc>> {
-		let oHeader = { alg: 'HS256', typ: 'JWT' };
-		let sHeader = JSON.stringify(oHeader);
-		let sPayload = JSON.stringify({ token: token });
-		let sJWT = JWS.sign('HS256', sHeader, sPayload, { utf8: token });
 		let query: Query = [
-			{ _id: sid || 'f00000000000000000000012', hash: sJWT.split('.')[1] }
+			{ _id: sid || 'f00000000000000000000012', token: token }
 		];
 		if (groups && groups.length) {
 			query.push({ groups: groups });
@@ -437,6 +441,7 @@ export class ApiService {
 	}
 
 	signout(): Observable<Res<Doc>> {
+		if (!this.authed) throw new Error('User not authed.');
 		let call = this.call({
 			endpoint: 'session/signout',
 			query: [
