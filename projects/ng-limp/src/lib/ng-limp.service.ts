@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-
+import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, combineLatest, interval, Subscription } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 
@@ -31,8 +31,8 @@ export class ApiService {
 	private heartbeat$: Subscription;
 
 	private queue: {
-		noAuth: Array<{ subject: Array<Subject<any>>; callArgs: callArgs; }>;
-		auth: Array<{ subject: Array<Subject<any>>; callArgs: callArgs; }>;
+		noAuth: Array<{ subject: Array<Observable<Res<Doc>>>; callArgs: callArgs; }>;
+		auth: Array<{ subject: Array<Observable<Res<Doc>>>; callArgs: callArgs; }>;
 	} = {
 			noAuth: new Array(),
 			auth: new Array()
@@ -46,7 +46,7 @@ export class ApiService {
 
 	session!: Session;
 
-	constructor(private cache: CacheService) {
+	constructor(private cache: CacheService, private http: HttpClient) {
 		this.inited$.subscribe((init) => {
 			if (init) {
 				this.heartbeat$ = this.heartbeat.subscribe((i) => {
@@ -213,84 +213,54 @@ export class ApiService {
 		let files: {
 			[key: string]: FileList;
 		} = {};
-		let filesSubjects: Array<Subject<any>> = [];
+		let filesUploads: Array<Observable<Res<Doc>>> = [];
 
 		for (let attr of Object.keys(callArgs.doc)) {
 			if (callArgs.doc[attr] instanceof FileList) {
 				this.log('log', 'Detected FileList for doc attr:', attr);
 				files[attr] = callArgs.doc[attr];
 				callArgs.doc[attr] = [];
-				for (let file of (files[attr] as any)) {
-					callArgs.doc[attr].push(file);
+				this.log('log', 'Attempting to read files from:', files[attr]);
+				for (let i of Object.keys(files[attr])) {
+					callArgs.doc[attr].push(files[attr][i].name);
+					this.log('log', 'Attempting to read file:', i, files[attr][i])
+					let reader = new FileReader();
+					let fileUpload: Observable<Res<Doc>> = new Observable(
+						(observer) => {
+							reader.onloadend = (file) => {
+								let form: FormData = new FormData();
+								form.append('name', files[attr][i].name);
+								form.append('size', files[attr][i].size);
+								form.append('type', files[attr][i].type);
+								form.append('lastModified', files[attr][i].lastModified);
+								form.append('content', (reader.result as any));
+								let observable = this.http.post(`${this.config.api.replace('ws', 'http').replace('/ws', '')}/file/create`, form).subscribe({
+									next: (res: Res<Doc>) => {
+										callArgs.doc[attr][i] = { __file: res.args.docs[0]._id };
+										observer.complete();
+										observer.unsubscribe();
+										observable.unsubscribe();
+									},
+									error: (err: Res<Doc>) => {
+										observer.error(err);
+									},
+									complete: () => {
+										observer.complete();
+									}
+								});
+							};
+							reader.readAsDataURL(files[attr][i]);
+						}
+					);
+					filesUploads.push(fileUpload);
 				}
 			}
 		}
 
-		for (let attr of Object.keys(files)) {
-			this.log('log', 'Attempting to read files from:', files[attr]);
-			let fileSubject = new Subject();
-			filesSubjects.push(fileSubject);
-			let fileUploads = [];
-			for (let i of Object.keys(files[attr])) {
-				this.log('log', 'Attempting to read file:', i, files[attr][i])
-				let reader = new FileReader();
-				let readerObservable = new Observable<any>(
-					(observer) => {
-						reader.onloadend = (file) => {
-							let byteArray = new Uint8Array((reader.result as any));
-							let byteArrayIndex: number = 0;
-							let chunkIndex: number = 1;
-							while (byteArrayIndex < byteArray.length) {
-								this.log('log', 'Attempting to send chunk of 500kb from:', byteArrayIndex, chunkIndex);
-								let fileUpload = this.call({
-									endpoint: 'file/upload',
-									doc: {
-										attr: attr,
-										index: i,
-										chunk: chunkIndex,
-										total: Math.ceil(byteArray.length / this.config.fileChunkSize),
-										file: {
-											name: files[attr][i].name,
-											size: files[attr][i].size,
-											type: files[attr][i].type,
-											lastModified: files[attr][i].lastModified,
-											content: byteArray.slice(byteArrayIndex, byteArrayIndex + this.config.fileChunkSize).join(',')
-										}
-									},
-									awaitAuth: callArgs.awaitAuth
-								});
-								fileUploads.push(fileUpload);
-
-								byteArrayIndex += this.config.fileChunkSize;
-								chunkIndex += 1;
-							}
-							observer.complete();
-							observer.unsubscribe();
-							readerObservable.unsubscribe();
-						};
-					}
-				).subscribe({
-					complete: () => {
-						this.log('log', 'Done parsing file:', i, files[attr][i]);
-						combineLatest(fileUploads).subscribe({
-							error: (err) => {
-								this.log('error', 'Received error on file for fileUploads:', i, err);
-							},
-							complete: () => {
-								this.log('log', 'Finsied uploading file:', i, files[attr][i]);
-								fileSubject.complete();
-							}
-						});
-					}
-				});
-				reader.readAsArrayBuffer(files[attr][i]);
-			}
-		}
-
-		this.log('log', 'Populated filesSubjects:', filesSubjects);
+		this.log('log', 'Populated filesObservables:', filesUploads);
 
 		if ((this.inited && callArgs.awaitAuth && this.authed) || (this.inited && !callArgs.awaitAuth) || callArgs.endpoint == 'conn/verify') {
-			combineLatest(filesSubjects).subscribe({
+			combineLatest(filesUploads).subscribe({
 				error: (err) => {
 					this.log('error', 'Received error on filesSubjects:', err);
 				},
@@ -312,13 +282,13 @@ export class ApiService {
 			if (callArgs.awaitAuth) {
 				this.log('warn', 'Queuing in auth queue.');
 				this.queue.auth.push({
-					subject: filesSubjects,
+					subject: filesUploads,
 					callArgs: callArgs
 				});
 			} else {
 				this.log('warn', 'Queuing in noAuth queue.');
 				this.queue.noAuth.push({
-					subject: filesSubjects,
+					subject: filesUploads,
 					callArgs: callArgs
 				});
 			}

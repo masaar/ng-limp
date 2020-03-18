@@ -1,4 +1,5 @@
-import { NgModule, ModuleWithProviders } from '@angular/core';
+import { NgModule } from '@angular/core';
+import { HttpClientModule } from '@angular/common/http';
 
 import { CookieService } from 'ngx-cookie-service';
 
@@ -7,7 +8,9 @@ import { ApiService } from './ng-limp.service';
 
 @NgModule({
 	declarations: [],
-	imports: [],
+	imports: [
+		HttpClientModule
+	],
 	exports: [],
 	providers: [
 		CookieService,
