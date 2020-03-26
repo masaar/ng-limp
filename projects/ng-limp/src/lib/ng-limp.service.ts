@@ -229,6 +229,8 @@ export class ApiService {
 						(observer) => {
 							reader.onloadend = (file) => {
 								let form: FormData = new FormData();
+								form.append('__module', callArgs.endpoint.split('/')[0]);
+								form.append('__attr', attr);
 								form.append('name', files[attr][i].name);
 								form.append('size', files[attr][i].size);
 								form.append('type', files[attr][i].type);
@@ -239,8 +241,9 @@ export class ApiService {
 									form,
 									{
 										headers: {
-											'X-Auth-Bearer': (this.authed) ? this.session.user._id : 'f00000000000000000000011',
-											'X-Auth-Token': callArgs.token
+											'X-Auth-Bearer': callArgs.sid,
+											'X-Auth-Token': callArgs.token,
+											'X-Auth-App': this.config.appId
 										}
 									}
 								).subscribe({
