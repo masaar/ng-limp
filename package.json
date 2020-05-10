@@ -23,7 +23,7 @@
     "core-js": "^2.6.8",
     "jsrsasign": "^8.0.15",
     "ngx-cookie-service": "^2.4.0",
-    "rxjs": "~6.5.4",
+    "rxjs": "~6.5.5",
     "tslib": "^1.10.0",
     "zone.js": "~0.10.3"
   },
