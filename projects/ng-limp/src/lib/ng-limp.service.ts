@@ -224,41 +224,37 @@ export class ApiService {
 				for (let i of Object.keys(files[attr])) {
 					callArgs.doc[attr].push(files[attr][i].name);
 					this.log('log', 'Attempting to read file:', i, files[attr][i])
-					let reader = new FileReader();
 					let fileUpload: Observable<Res<Doc>> = new Observable(
 						(observer) => {
-							reader.onloadend = (file) => {
-								let form: FormData = new FormData();
-								form.append('name', files[attr][i].name);
-								form.append('size', files[attr][i].size);
-								form.append('type', files[attr][i].type);
-								form.append('lastModified', files[attr][i].lastModified);
-								form.append('content', (reader.result as any));
-								let observable = this.http.post(
-									`${this.config.api.replace('ws', 'http').replace('/ws', '')}/file/create`,
-									form,
-									{
-										headers: {
-											'X-Auth-Bearer': (this.authed) ? this.session.user._id : 'f00000000000000000000011',
-											'X-Auth-Token': callArgs.token
-										}
+							let form: FormData = new FormData();
+							form.append('__module', callArgs.endpoint.split('/')[0]);
+							form.append('__attr', attr);
+							form.append('lastModified', files[attr][i].lastModified);
+							form.append('file', files[attr][i], files[attr][i].name);
+							let observable = this.http.post(
+								`${this.config.api.replace('ws', 'http').replace('/ws', '')}/file/create`,
+								form,
+								{
+									headers: {
+										'X-Auth-Bearer': callArgs.sid,
+										'X-Auth-Token': callArgs.token,
+										'X-Auth-App': this.config.appId
 									}
-								).subscribe({
-									next: (res: Res<Doc>) => {
-										callArgs.doc[attr][i] = { __file: res.args.docs[0]._id };
-										observer.complete();
-										observer.unsubscribe();
-										observable.unsubscribe();
-									},
-									error: (err: Res<Doc>) => {
-										observer.error(err);
-									},
-									complete: () => {
-										observer.complete();
-									}
-								});
-							};
-							reader.readAsDataURL(files[attr][i]);
+								}
+							).subscribe({
+								next: (res: Res<Doc>) => {
+									callArgs.doc[attr][i] = { __file: res.args.docs[0]._id };
+									observer.complete();
+									observer.unsubscribe();
+									observable.unsubscribe();
+								},
+								error: (err: Res<Doc>) => {
+									observer.error(err);
+								},
+								complete: () => {
+									observer.complete();
+								}
+							});
 						}
 					);
 					filesUploads.push(fileUpload);
