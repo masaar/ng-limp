@@ -57,7 +57,7 @@ export class AppComponent implements OnInit {
 	}
 
 	auth(): void {
-		this.api.auth('email', 'ADMIN@LIMP.MASAAR.COM', '__ADMINx0', ['f00000000000000000000013']);
+		this.api.auth('email', 'admin@app.limp.masaar.com', 'S0mE_V3Ry_STR0nG_P@SsW0rD', ['f00000000000000000000013']);
 		//.subscribe((res) => { alert('Authed succefully!') });
 	}
 

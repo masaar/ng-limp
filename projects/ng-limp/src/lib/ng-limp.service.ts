@@ -230,6 +230,8 @@ export class ApiService {
 							form.append('__module', callArgs.endpoint.split('/')[0]);
 							form.append('__attr', attr);
 							form.append('lastModified', files[attr][i].lastModified);
+							form.append('type', files[attr][i].type);
+							form.append('name', files[attr][i].name);
 							form.append('file', files[attr][i], files[attr][i].name);
 							let observable = this.http.post(
 								`${this.config.api.replace('ws', 'http').replace('/ws', '')}/file/create`,
