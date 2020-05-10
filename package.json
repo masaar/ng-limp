@@ -19,7 +19,7 @@
     "@angular/platform-browser": "^9.1.6",
     "@angular/platform-browser-dynamic": "^9.1.6",
     "@angular/router": "^9.1.6",
-    "@nguniversal/express-engine": "^9.0.1",
+    "@nguniversal/express-engine": "^9.1.0",
     "core-js": "^2.6.8",
     "jsrsasign": "^8.0.15",
     "ngx-cookie-service": "^2.4.0",
