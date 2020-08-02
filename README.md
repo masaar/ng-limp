@@ -1,3 +1,5 @@
+> LIMP is now Nawah and moved to: https://github.com/nawah-io/nawah_docs!
+
 # ng-limp
 This repo is the home of the source code of `ng-limp`, the official Angular SDK for [LIMP](https://github.com/masaar/limp).
 
